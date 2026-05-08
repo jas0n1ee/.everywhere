@@ -12,6 +12,7 @@ It lets a human temporarily control and observe a local terminal agent session f
 - Provider prompts and provider-specific settings belong in `.codex`, `.claude`, or similar provider directories.
 - Swarm remains a local orchestrator-worker runtime.
 - Remote control is not Swarm task state.
+- Do not introduce a transport abstraction until a second bridge exists. Keep Feishu in `feishu_bridge.py` for now.
 - Provider prompts should keep remote-control behavior mostly out-of-band.
   Remote-control forwarding is bridge behavior, not something agents should reason about every turn.
 - `NOTIFY HUMAN` should not be used as a magic phrase. Explicit commands such as `everywhere feishu notify` are the escalation surface.
@@ -53,8 +54,8 @@ It lets a human temporarily control and observe a local terminal agent session f
 
 ## Known Gaps
 
-- The bridge is still implemented as one Feishu-specific Python file.
-- There is no shared transport interface for future non-Feishu bridges.
+- The bridge is still intentionally implemented as one Feishu-specific Python file.
+- There is no shared transport interface for future non-Feishu bridges; wait for a second bridge before extracting one.
 - There is no provider abstraction beyond path-based Codex/Claude transcript detection.
 - Claude final-answer detection is heuristic; transcript hooks may be better.
 - Codex hook support has not been researched or implemented.

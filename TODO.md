@@ -27,8 +27,9 @@
   Inbound files/images are downloaded to local state and pasted into the agent session; outbound files/images use the Skill-guided `lark-cli` reply flow.
 - Keep outbound artifact upload in the Skill/lark-cli layer unless repeated edge cases justify a runtime wrapper.
 - Developer review gate is `everywhere check`.
+- Do not introduce a transport abstraction until a second bridge exists.
+  Keep the Feishu implementation in `feishu_bridge.py`; only extract clearly transport-neutral helpers when they are being edited anyway.
 
 ## Remote Control / Feishu Bridge
 
-- Decide how non-Feishu bridges should share common code with `feishu_bridge.py`.
-  Feishu is the first bridge, not the whole Everywhere transport layer.
+No open items.
