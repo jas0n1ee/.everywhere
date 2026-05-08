@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+usage() {
+  cat <<'EOF'
+Usage: everywhere <command> [args]
+
+Commands:
+  install             Check local prerequisites and initialize state
+  feishu <command>    Run Feishu bridge commands
+  help                Show this help
+
+Examples:
+  everywhere install
+  everywhere feishu bootstrap-chat --chat-id <chat_id>
+  everywhere feishu run
+  everywhere feishu attach
+  everywhere feishu notify --message "Need human decision"
+EOF
+}
+
+cmd="${1:-help}"
+case "$cmd" in
+  install)
+    shift
+    exec python3 "$ROOT/scripts/install.py" "$@"
+    ;;
+  feishu)
+    shift
+    exec "$ROOT/bin/feishu-bridge" "$@"
+    ;;
+  feishu-bridge)
+    shift
+    exec "$ROOT/bin/feishu-bridge" "$@"
+    ;;
+  help|--help|-h)
+    usage
+    ;;
+  *)
+    echo "Unknown command: $cmd" >&2
+    echo >&2
+    usage >&2
+    exit 2
+    ;;
+esac
