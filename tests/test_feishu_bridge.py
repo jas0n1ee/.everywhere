@@ -62,7 +62,7 @@ def test_idempotency_key_stays_within_lark_limit() -> None:
     assert len(key) <= 50
 
 
-def test_tmux_paste_input_uses_orchestrator_pane_zero() -> None:
+def test_tmux_paste_input_uses_bound_target_pane() -> None:
     calls: list[list[str]] = []
     inputs: list[str | None] = []
 
@@ -70,46 +70,33 @@ def test_tmux_paste_input_uses_orchestrator_pane_zero() -> None:
         calls.append(command)
         inputs.append(kwargs.get("input"))
         if command[:3] == ["tmux", "display-message", "-p"]:
-            return completed("orchestrator\n")
+            return completed("%7\n")
         return completed("")
 
     tmux = bridge.TmuxClient(runner=runner)
+    binding = bridge.Binding.create(topic="my-topic", chat_id="oc_1", root_message_id="om_root", target_pane="%7")
     with patch.object(bridge, "SUBMIT_DELAY_SECONDS", 0):
-        tmux.paste_input("my-topic", "hello\n")
+        tmux.paste_input(binding, "hello\n")
     assert inputs[1] == "hello"
-    assert ["tmux", "paste-buffer", "-b", calls[1][3], "-t", "my-topic:0.0"] in calls
-    assert ["tmux", "send-keys", "-t", "my-topic:0.0", "Enter"] in calls
+    assert ["tmux", "paste-buffer", "-b", calls[1][3], "-t", "%7"] in calls
+    assert ["tmux", "send-keys", "-t", "%7", "Enter"] in calls
 
 
-def test_tmux_validate_accepts_common_agent_windows() -> None:
-    names = iter(["claude", "codex-main", "node"])
+def test_tmux_paste_input_legacy_binding_falls_back_to_session_pane_zero() -> None:
+    calls: list[list[str]] = []
 
     def runner(command, **kwargs):
-        return completed(next(names) + "\n")
+        calls.append(command)
+        return completed("%8\n")
 
     tmux = bridge.TmuxClient(runner=runner)
-    tmux.validate_orchestrator("topic-a")
-    tmux.validate_orchestrator("topic-a")
-    tmux.validate_orchestrator("topic-a")
+    binding = bridge.Binding.create(topic="topic-a", chat_id="oc_1", root_message_id="om_root")
+    with patch.object(bridge, "SUBMIT_DELAY_SECONDS", 0):
+        tmux.paste_input(binding, "hello")
+    assert ["tmux", "paste-buffer", "-b", calls[1][3], "-t", "topic-a:0.0"] in calls
 
 
-def test_tmux_validate_rejects_non_agent_window() -> None:
-    def runner(command, **kwargs):
-        return completed("bash\n")
-
-    tmux = bridge.TmuxClient(runner=runner)
-    try:
-        tmux.validate_orchestrator("topic-a")
-    except RuntimeError as exc:
-        assert "orchestrator*" in str(exc)
-        assert "claude*" in str(exc)
-        assert "codex*" in str(exc)
-        assert "node*" in str(exc)
-    else:
-        raise AssertionError("expected non-agent window name to be rejected")
-
-
-def test_tmux_pane_cwd_uses_orchestrator_pane_zero() -> None:
+def test_tmux_pane_cwd_uses_bound_target_pane() -> None:
     calls: list[list[str]] = []
 
     def runner(command, **kwargs):
@@ -117,8 +104,9 @@ def test_tmux_pane_cwd_uses_orchestrator_pane_zero() -> None:
         return completed("/repo\n")
 
     tmux = bridge.TmuxClient(runner=runner)
-    assert tmux.pane_cwd("my-topic") == "/repo"
-    assert calls == [["tmux", "display-message", "-p", "-t", "my-topic:0.0", "#{pane_current_path}"]]
+    binding = bridge.Binding.create(topic="my-topic", chat_id="oc_1", root_message_id="om_root", target_pane="%7")
+    assert tmux.pane_cwd(binding) == "/repo"
+    assert calls == [["tmux", "display-message", "-p", "-t", "%7", "#{pane_current_path}"]]
 
 
 def test_extract_text_from_text_event() -> None:
@@ -166,15 +154,17 @@ def test_attach_creates_binding_when_missing(tmp_path: Path, monkeypatch) -> Non
         def current_session(self):
             return "topic-a"
 
-        def validate_orchestrator(self, session):
-            assert session == "topic-a"
+        def current_pane(self):
+            return "%7"
 
-        def pane_cwd(self, session):
+        def pane_cwd(self, binding):
+            assert binding.target_pane == "%7"
             return str(tmp_path)
 
     binding = bridge.create_or_update_binding(state, FakeLark(), FakeTmux())
     assert binding.root_message_id == "om_new"
     assert binding.remote_control_active
+    assert binding.target_pane == "%7"
     assert sent == [("oc_default", "topic-a\n\nRemote Control attached.")]
     assert state.binding_for_topic("topic-a").root_message_id == "om_new"
 

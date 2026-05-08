@@ -7,7 +7,7 @@ human can observe and control it remotely.
 
 Everywhere is a transport runtime. The current bridge is Feishu:
 
-- inbound Feishu replies are pasted into pane `0` of tmux window `0`
+- inbound Feishu replies are pasted into the tmux pane that ran `attach`
 - assistant final replies are forwarded back to the Feishu thread from provider transcripts
 - manual notifications can be sent with `feishu-bridge notify`
 
@@ -223,13 +223,10 @@ Keep this process running while remote control is needed.
 Requirements:
 
 - you are inside tmux
-- tmux window `0` is the agent window
-- pane `0` in window `0` is the agent pane
-- window `0` name starts with `orchestrator`, `claude`, `codex`, or `node`
 - a default Feishu chat is configured
 - `feishu-bridge run` is running or will be started soon
 
-From a pane inside the target tmux session:
+From the agent pane that should receive remote-control input:
 
 ```bash
 feishu-bridge attach
@@ -244,7 +241,7 @@ everywhere feishu attach
 The bridge will:
 
 1. read the current tmux session name as the topic
-2. validate window `0`
+2. record the current tmux `pane_id` as the remote-control target
 3. create or update a binding under `~/.everywhere/feishu-bridge/`
 4. send a root Feishu message like:
 
@@ -254,13 +251,7 @@ The bridge will:
 Remote Control attached.
 ```
 
-Human replies in that Feishu thread are pasted into pane `0` of tmux window `0`.
-
-If your agent window has a different naming convention, set:
-
-```bash
-export FEISHU_BRIDGE_AGENT_WINDOW_PREFIXES="orchestrator,claude,codex,node,my-agent"
-```
+Human replies in that Feishu thread are pasted into the recorded target pane.
 
 ## Manual Notify
 

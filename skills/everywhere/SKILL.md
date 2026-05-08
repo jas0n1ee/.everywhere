@@ -11,6 +11,22 @@ Use it only when the user asks for Feishu remote control, wants a human notifica
 
 ## Commands
 
+When the human asks you to run `/everywhere`, enable Feishu remote control for
+the current tmux pane:
+
+```bash
+everywhere feishu status
+everywhere feishu current --json || true
+everywhere feishu attach
+```
+
+When the human asks you to run `/everywhere detach`, detach the current tmux
+session from Feishu remote control:
+
+```bash
+everywhere feishu detach
+```
+
 Check current binding from inside the target tmux session:
 
 ```bash
@@ -22,6 +38,9 @@ Attach the current tmux session to Feishu remote control:
 ```bash
 everywhere feishu attach
 ```
+
+`attach` binds the current tmux pane. Run it from the agent pane that should
+receive remote-control input.
 
 Send a short notification:
 

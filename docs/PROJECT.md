@@ -20,8 +20,8 @@ It lets a human temporarily control and observe a local terminal agent session f
 - Agents can discover the current Feishu thread with `everywhere feishu current --json` and upload artifacts by calling `lark-cli im +messages-reply --image/--file` from the artifact directory.
 - Feishu thread topic maps to one tmux session.
 - The tmux session name is the topic name.
-- Window `0` must look like an agent window. By default, names starting with `orchestrator`, `claude`, `codex`, or `node` are accepted.
-- Pane `0` in window `0` is the agent pane that receives remote-control input.
+- `attach` records the current tmux `pane_id`; that pane receives remote-control input.
+- Window names and process-name prefixes are not used to identify agent panes.
 
 ## Current Feishu Bridge Commands
 
@@ -37,7 +37,7 @@ It lets a human temporarily control and observe a local terminal agent session f
 - State under `~/.everywhere/feishu-bridge/`.
 - Default chat resolution via environment or saved config.
 - Binding storage for topic, chat id, root message id, optional thread id, transcript path, offsets, and remote-control state.
-- Inbound Feishu text/post routing into tmux window `0`.
+- Inbound Feishu text/post routing into the bound tmux pane.
 - Inbound attachment download for supported image/file resource keys, injecting the saved local path into tmux.
 - Attachments are a supported Feishu bridge v1 feature, not a transport-neutral Everywhere abstraction yet.
 - Inbound ACK reaction after successful delivery.

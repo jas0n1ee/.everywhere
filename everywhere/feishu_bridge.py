@@ -2,9 +2,10 @@
 """Remote-control bridge between Feishu threads and local tmux agent sessions.
 
 The bridge is transport-only. A Feishu thread is bound to one tmux session, the
-session name is the topic, and window 0 must look like an agent window. While
-attached, human text replies are pasted into pane 0 of that window and assistant
-final replies from provider transcripts are sent back to the thread.
+session name is the topic, and attach records the current tmux pane as the
+remote-control target. While attached, human text replies are pasted into that
+pane and assistant final replies from provider transcripts are sent back to the
+thread.
 """
 
 from __future__ import annotations
@@ -31,11 +32,6 @@ DEFAULT_STATE_DIR = Path("~/.everywhere/feishu-bridge").expanduser()
 MAX_TEXT_CHARS = int(os.environ.get("FEISHU_BRIDGE_MAX_TEXT_CHARS", "3500"))
 ACK_REACTION = os.environ.get("FEISHU_BRIDGE_ACK_REACTION", "OnIt")
 SUBMIT_DELAY_SECONDS = float(os.environ.get("FEISHU_BRIDGE_SUBMIT_DELAY_SECONDS", "0.1"))
-AGENT_WINDOW_PREFIXES = tuple(
-    prefix.strip()
-    for prefix in os.environ.get("FEISHU_BRIDGE_AGENT_WINDOW_PREFIXES", "orchestrator,claude,codex,node").split(",")
-    if prefix.strip()
-)
 CODEX_SESSIONS_DIR = Path(os.environ.get("FEISHU_BRIDGE_CODEX_SESSIONS", "~/.codex/sessions")).expanduser()
 CLAUDE_PROJECTS_DIR = Path(os.environ.get("FEISHU_BRIDGE_CLAUDE_PROJECTS", "~/.claude/projects")).expanduser()
 
@@ -51,6 +47,7 @@ class Binding:
     title: str | None = None
     active: bool = True
     remote_control_active: bool = False
+    target_pane: str | None = None
     default: bool = False
     transcript_path: str | None = None
     transcript_offset: int = 0
@@ -65,6 +62,7 @@ class Binding:
         chat_id: str,
         root_message_id: str,
         thread_id: str | None = None,
+        target_pane: str | None = None,
         default: bool = False,
     ) -> "Binding":
         now = datetime.now().isoformat()
@@ -76,6 +74,7 @@ class Binding:
             title=topic,
             active=True,
             remote_control_active=True,
+            target_pane=target_pane,
             default=default,
             created_at=now,
             updated_at=now,
@@ -120,6 +119,7 @@ class BridgeState:
             if not isinstance(item, dict):
                 continue
             item.setdefault("remote_control_active", bool(item.get("active", False)))
+            item.setdefault("target_pane", None)
             item.setdefault("transcript_path", None)
             item.setdefault("transcript_offset", 0)
             bindings.append(Binding(**item))
@@ -352,22 +352,27 @@ class TmuxClient:
             raise RuntimeError("feishu-bridge attach/detach must run inside the target tmux session")
         return self._tmux(["display-message", "-p", "#{session_name}"]).strip()
 
-    def validate_orchestrator(self, session: str) -> None:
-        window_name = self._tmux(["display-message", "-p", "-t", f"{session}:0", "#{window_name}"]).strip()
-        if not window_name.startswith(AGENT_WINDOW_PREFIXES):
-            allowed = ", ".join(f"{prefix}*" for prefix in AGENT_WINDOW_PREFIXES)
-            raise RuntimeError(f"{session}:0 window must be named like an agent window ({allowed}), got '{window_name}'")
+    def current_pane(self) -> str:
+        if not os.environ.get("TMUX"):
+            raise RuntimeError("feishu-bridge attach/detach must run inside the target tmux session")
+        return self._tmux(["display-message", "-p", "#{pane_id}"]).strip()
 
-    def orchestrator_pane_target(self, session: str) -> str:
+    def legacy_pane_target(self, session: str) -> str:
         return f"{session}:0.0"
 
-    def pane_cwd(self, session: str) -> str:
-        return self._tmux(["display-message", "-p", "-t", self.orchestrator_pane_target(session), "#{pane_current_path}"]).strip()
+    def target_for_binding(self, binding: Binding) -> str:
+        return binding.target_pane or self.legacy_pane_target(binding.topic)
 
-    def paste_input(self, session: str, text: str) -> None:
-        self.validate_orchestrator(session)
+    def pane_cwd(self, binding: Binding) -> str:
+        return self._tmux(["display-message", "-p", "-t", self.target_for_binding(binding), "#{pane_current_path}"]).strip()
+
+    def ensure_pane_exists(self, binding: Binding) -> None:
+        self._tmux(["display-message", "-p", "-t", self.target_for_binding(binding), "#{pane_id}"])
+
+    def paste_input(self, binding: Binding, text: str) -> None:
+        self.ensure_pane_exists(binding)
         buffer_name = f"feishu-bridge-{os.getpid()}"
-        target = self.orchestrator_pane_target(session)
+        target = self.target_for_binding(binding)
         payload = text.rstrip("\n")
         load = self.runner(["tmux", "load-buffer", "-b", buffer_name, "-"], input=payload, text=True, capture_output=True, check=False)
         if load.returncode != 0:
@@ -604,7 +609,7 @@ def find_thread_id(payload: dict[str, Any]) -> str | None:
 
 def create_or_update_binding(state: BridgeState, lark: LarkClient, tmux: TmuxClient) -> Binding:
     topic = tmux.current_session()
-    tmux.validate_orchestrator(topic)
+    target_pane = tmux.current_pane()
     binding = state.binding_for_topic(topic)
     if not binding:
         chat_id = state.get_default_chat_id()
@@ -621,9 +626,11 @@ def create_or_update_binding(state: BridgeState, lark: LarkClient, tmux: TmuxCli
                 thread_id = find_thread_id(lark.mget(root_id))
             except Exception:
                 thread_id = None
-        binding = Binding.create(topic=topic, chat_id=chat_id, root_message_id=root_id, thread_id=thread_id, default=True)
+        binding = Binding.create(topic=topic, chat_id=chat_id, root_message_id=root_id, thread_id=thread_id, target_pane=target_pane, default=True)
+    else:
+        binding.target_pane = target_pane
     binding.remote_control_active = True
-    transcript = discover_transcript(tmux.pane_cwd(topic))
+    transcript = discover_transcript(tmux.pane_cwd(binding))
     if transcript:
         binding.transcript_path = str(transcript)
         binding.transcript_offset = transcript.stat().st_size
@@ -679,7 +686,7 @@ def handle_inbound_event(state: BridgeState, lark: LarkClient, tmux: TmuxClient,
         state.mark_inbound(event_id)
         return False
     try:
-        tmux.paste_input(binding.topic, text)
+        tmux.paste_input(binding, text)
     except Exception as exc:
         lark.reply_text(binding.root_message_id, "feishu-bridge could not deliver this reply to the local tmux session. Check bridge logs.")
         state.log(f"delivery failed event_id={event_id} chat_id={chat_id} topic={binding.topic} error={exc}")
@@ -779,8 +786,8 @@ def poll_outbound_once(state: BridgeState, lark: LarkClient, tmux: TmuxClient) -
         if not binding.active or not binding.remote_control_active:
             continue
         try:
-            tmux.validate_orchestrator(binding.topic)
-            transcript = Path(binding.transcript_path).expanduser() if binding.transcript_path else discover_transcript(tmux.pane_cwd(binding.topic))
+            tmux.ensure_pane_exists(binding)
+            transcript = Path(binding.transcript_path).expanduser() if binding.transcript_path else discover_transcript(tmux.pane_cwd(binding))
             if not transcript or not transcript.exists():
                 continue
             if str(transcript) != binding.transcript_path:
@@ -1085,6 +1092,7 @@ def binding_status_payload(binding: Binding) -> dict[str, Any]:
         "title": binding.title,
         "active": binding.active,
         "remote_control_active": binding.remote_control_active,
+        "target_pane": binding.target_pane,
         "default": binding.default,
         "transcript_path": binding.transcript_path,
         "transcript_offset": binding.transcript_offset,
@@ -1131,7 +1139,8 @@ def cmd_status(args: argparse.Namespace) -> int:
         rc = "attached" if binding.remote_control_active else "detached"
         marker = "active" if binding.active else "inactive"
         transcript = binding.transcript_path or "-"
-        print(f"- {binding.topic}: {rc}, {marker}, chat={binding.chat_id}, root={binding.root_message_id}, transcript={transcript}")
+        target_pane = binding.target_pane or "-"
+        print(f"- {binding.topic}: {rc}, {marker}, pane={target_pane}, chat={binding.chat_id}, root={binding.root_message_id}, transcript={transcript}")
     return 0 if ok else 2
 
 
