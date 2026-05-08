@@ -126,6 +126,26 @@ def test_extract_text_from_text_event() -> None:
     assert bridge.extract_text(event) == "hello"
 
 
+def test_ack_bootstrap_message_adds_reaction() -> None:
+    calls: list[str] = []
+
+    class FakeLark:
+        def add_ack_reaction(self, message_id):
+            calls.append(message_id)
+
+    event = {"message_id": "om_bootstrap"}
+    assert bridge.ack_bootstrap_message(FakeLark(), event)
+    assert calls == ["om_bootstrap"]
+
+
+def test_ack_bootstrap_message_without_message_id_is_noop() -> None:
+    class FakeLark:
+        def add_ack_reaction(self, message_id):
+            raise AssertionError("should not react without message id")
+
+    assert not bridge.ack_bootstrap_message(FakeLark(), {})
+
+
 def test_attach_creates_binding_when_missing(tmp_path: Path, monkeypatch) -> None:
     state = bridge.BridgeState(tmp_path)
     state.save_default_chat_id("oc_default")

@@ -183,6 +183,9 @@ non-interactive bootstrap, accept the first observed chat:
 feishu-bridge bootstrap-chat --yes
 ```
 
+When bootstrap saves a chat from an observed Feishu message, the bot adds an ACK
+reaction to that message so the human can see that setup completed.
+
 You can also set the default chat for a process with:
 
 ```bash

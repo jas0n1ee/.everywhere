@@ -20,11 +20,11 @@
 - Replace `NOTIFY HUMAN` as a magic phrase with explicit bridge commands such as `everywhere feishu notify`.
 - Keep Everywhere as a Python runtime/tool and expose an Everywhere Skill for agent-facing usage guidance.
 - For agent-to-human artifact delivery, first add `everywhere feishu current --json`; let the agent call `lark-cli` directly for upload in the short term.
+- `bootstrap-chat` acknowledges the bootstrap Feishu message with a reaction after saving the default chat.
+- `npx skills add` installs the isolated `skills/everywhere` Skill without copying runtime code.
 
 ## Remote Control / Feishu Bridge
 
-- Audit current provider and skill docs for stale `NOTIFY HUMAN` or old `.everywhere/bin/feishu-bridge` guidance.
-- Verify `npx skills add jas0n1ee/.everywhere --global --full-depth --agent codex claude-code --skill everywhere --yes --copy` after pushing the root Skill.
 - Decide how non-Feishu bridges should share common code with `feishu_bridge.py`.
   Feishu is the first bridge, not the whole Everywhere transport layer.
 - Decide whether attachments are v1 bridge behavior or a Feishu-specific extension.

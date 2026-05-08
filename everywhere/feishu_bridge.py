@@ -1007,6 +1007,14 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def ack_bootstrap_message(lark: LarkClient, event: dict[str, Any]) -> bool:
+    message_id = event_message_id(event)
+    if not message_id:
+        return False
+    lark.add_ack_reaction(message_id)
+    return True
+
+
 def cmd_bootstrap_chat(args: argparse.Namespace) -> int:
     state = BridgeState(args.state_dir)
     if args.chat_id:
@@ -1014,6 +1022,7 @@ def cmd_bootstrap_chat(args: argparse.Namespace) -> int:
         print(f"Saved default chat: {args.chat_id}")
         return 0
     print("Waiting for a Feishu message that reaches the bot. Press Ctrl-C to cancel.", file=sys.stderr)
+    lark = LarkClient()
     proc = consume_events()
     assert proc.stdout is not None
     try:
@@ -1026,6 +1035,13 @@ def cmd_bootstrap_chat(args: argparse.Namespace) -> int:
             confirmed = "y" if args.yes else input("Save this chat as the default for new sessions? [y/N] ").strip().lower()
             if confirmed == "y":
                 state.save_default_chat_id(chat_id)
+                try:
+                    if ack_bootstrap_message(lark, event):
+                        print("Acknowledged bootstrap message with reaction.")
+                    else:
+                        print("Saved default chat, but bootstrap event had no message id to acknowledge.", file=sys.stderr)
+                except Exception as exc:
+                    print(f"Saved default chat, but failed to acknowledge bootstrap message: {exc}", file=sys.stderr)
                 print(f"Saved default chat: {chat_id}")
                 return 0
     finally:
