@@ -24,7 +24,8 @@ uv tool update-shell
 ```
 
 The installer is idempotent. It checks local prerequisites, creates bridge state under
-`~/.everywhere/feishu-bridge/`, and prints the next setup steps.
+`~/.everywhere/feishu-bridge/`, installs the Everywhere Skill with `npx skills add`,
+and prints the next setup steps.
 
 If you use `pipx` instead of `uv`:
 
@@ -68,10 +69,15 @@ everywhere feishu attach
 everywhere feishu detach
 everywhere feishu notify
 everywhere feishu status
+everywhere feishu current
 ```
 
 `feishu-bridge <command>` is also exposed as a direct alias for scripts or local
 debugging.
+
+The installed Skill teaches agents to use `everywhere feishu current --json` and
+then call `lark-cli im +messages-reply` when the human asks for a local file or
+image artifact.
 
 See [docs/ONBOARDING.md](docs/ONBOARDING.md) for `lark-cli` setup, Feishu app
 requirements, bootstrap, attach, and troubleshooting.

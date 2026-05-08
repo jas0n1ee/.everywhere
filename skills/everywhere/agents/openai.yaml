@@ -1,0 +1,4 @@
+interface:
+  display_name: "Everywhere"
+  short_description: "Use Feishu remote control for local agent sessions"
+  default_prompt: "Use Everywhere for the current local agent session. Check the current Feishu binding with `everywhere feishu current --json` before notifying or sending files/images. Use `lark-cli im +messages-reply` with the returned root message ID for artifact upload."

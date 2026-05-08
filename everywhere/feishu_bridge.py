@@ -30,6 +30,7 @@ EVENT_KEY = "im.message.receive_v1"
 DEFAULT_STATE_DIR = Path("~/.everywhere/feishu-bridge").expanduser()
 MAX_TEXT_CHARS = int(os.environ.get("FEISHU_BRIDGE_MAX_TEXT_CHARS", "3500"))
 ACK_REACTION = os.environ.get("FEISHU_BRIDGE_ACK_REACTION", "OnIt")
+SUBMIT_DELAY_SECONDS = float(os.environ.get("FEISHU_BRIDGE_SUBMIT_DELAY_SECONDS", "0.1"))
 CODEX_SESSIONS_DIR = Path(os.environ.get("FEISHU_BRIDGE_CODEX_SESSIONS", "~/.codex/sessions")).expanduser()
 CLAUDE_PROJECTS_DIR = Path(os.environ.get("FEISHU_BRIDGE_CLAUDE_PROJECTS", "~/.claude/projects")).expanduser()
 
@@ -361,7 +362,7 @@ class TmuxClient:
         self.validate_orchestrator(session)
         buffer_name = f"feishu-bridge-{os.getpid()}"
         target = self.orchestrator_pane_target(session)
-        payload = text if text.endswith("\n") else text + "\n"
+        payload = text.rstrip("\n")
         load = self.runner(["tmux", "load-buffer", "-b", buffer_name, "-"], input=payload, text=True, capture_output=True, check=False)
         if load.returncode != 0:
             raise RuntimeError(load.stderr.strip() or "tmux load-buffer failed")
@@ -369,6 +370,8 @@ class TmuxClient:
         self.runner(["tmux", "delete-buffer", "-b", buffer_name], text=True, capture_output=True, check=False)
         if paste.returncode != 0:
             raise RuntimeError(paste.stderr.strip() or "tmux paste-buffer failed")
+        if SUBMIT_DELAY_SECONDS > 0:
+            time.sleep(SUBMIT_DELAY_SECONDS)
         submit = self.runner(["tmux", "send-keys", "-t", target, "Enter"], text=True, capture_output=True, check=False)
         if submit.returncode != 0:
             raise RuntimeError(submit.stderr.strip() or "tmux send-keys Enter failed")
@@ -1051,6 +1054,48 @@ def cmd_notify(args: argparse.Namespace) -> int:
     return 0
 
 
+def binding_status_payload(binding: Binding) -> dict[str, Any]:
+    return {
+        "topic": binding.topic,
+        "chat_id": binding.chat_id,
+        "root_message_id": binding.root_message_id,
+        "thread_id": binding.thread_id,
+        "title": binding.title,
+        "active": binding.active,
+        "remote_control_active": binding.remote_control_active,
+        "default": binding.default,
+        "transcript_path": binding.transcript_path,
+        "transcript_offset": binding.transcript_offset,
+        "created_at": binding.created_at,
+        "updated_at": binding.updated_at,
+    }
+
+
+def cmd_current(args: argparse.Namespace) -> int:
+    state = BridgeState(args.state_dir)
+    topic = TmuxClient().current_session()
+    binding = state.binding_for_topic(topic, require_active=False)
+    if not binding:
+        payload = {
+            "topic": topic,
+            "bound": False,
+            "error": f"No binding for current tmux session '{topic}'. Run feishu-bridge attach first.",
+        }
+        if args.json:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+            return 1
+        raise RuntimeError(payload["error"])
+    payload = binding_status_payload(binding)
+    payload["bound"] = True
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        rc = "attached" if binding.remote_control_active else "detached"
+        marker = "active" if binding.active else "inactive"
+        print(f"{binding.topic}: {rc}, {marker}, chat={binding.chat_id}, root={binding.root_message_id}")
+    return 0
+
+
 def cmd_status(args: argparse.Namespace) -> int:
     state = BridgeState(args.state_dir)
     lark = LarkClient()
@@ -1093,6 +1138,10 @@ def build_parser() -> argparse.ArgumentParser:
     group.add_argument("--message")
     group.add_argument("--message-file")
     notify.set_defaults(func=cmd_notify)
+
+    current = subparsers.add_parser("current", help="Show the current tmux session binding")
+    current.add_argument("--json", action="store_true", help="Print machine-readable binding JSON")
+    current.set_defaults(func=cmd_current)
 
     status = subparsers.add_parser("status", help="Show bridge state and self-checks")
     status.set_defaults(func=cmd_status)

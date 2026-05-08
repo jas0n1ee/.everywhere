@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import subprocess
+from types import SimpleNamespace
 from pathlib import Path
+from unittest.mock import patch
 
 import sys
 
@@ -60,15 +64,19 @@ def test_idempotency_key_stays_within_lark_limit() -> None:
 
 def test_tmux_paste_input_uses_orchestrator_pane_zero() -> None:
     calls: list[list[str]] = []
+    inputs: list[str | None] = []
 
     def runner(command, **kwargs):
         calls.append(command)
+        inputs.append(kwargs.get("input"))
         if command[:3] == ["tmux", "display-message", "-p"]:
             return completed("orchestrator\n")
         return completed("")
 
     tmux = bridge.TmuxClient(runner=runner)
-    tmux.paste_input("my-topic", "hello")
+    with patch.object(bridge, "SUBMIT_DELAY_SECONDS", 0):
+        tmux.paste_input("my-topic", "hello\n")
+    assert inputs[1] == "hello"
     assert ["tmux", "paste-buffer", "-b", calls[1][3], "-t", "my-topic:0.0"] in calls
     assert ["tmux", "send-keys", "-t", "my-topic:0.0", "Enter"] in calls
 
@@ -129,6 +137,24 @@ def test_detach_preserves_binding(tmp_path: Path) -> None:
     binding = state.set_remote_control("topic-a", False)
     assert not binding.remote_control_active
     assert state.binding_for_topic("topic-a").root_message_id == "om_root"
+
+
+def test_current_json_reports_current_binding(tmp_path: Path) -> None:
+    state = bridge.BridgeState(tmp_path)
+    state.upsert_binding(bridge.Binding.create(topic="topic-a", chat_id="oc_1", root_message_id="om_root"))
+
+    class FakeTmux:
+        def current_session(self):
+            return "topic-a"
+
+    args = SimpleNamespace(state_dir=tmp_path, json=True)
+    stdout = io.StringIO()
+    with patch.object(bridge, "TmuxClient", return_value=FakeTmux()), contextlib.redirect_stdout(stdout):
+        assert bridge.cmd_current(args) == 0
+    payload = json.loads(stdout.getvalue())
+    assert payload["bound"] is True
+    assert payload["topic"] == "topic-a"
+    assert payload["root_message_id"] == "om_root"
 
 
 def test_parse_codex_task_complete_final_message() -> None:

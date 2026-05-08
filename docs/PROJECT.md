@@ -12,6 +12,11 @@ It lets a human temporarily control and observe a local terminal agent session f
 - Provider prompts and provider-specific settings belong in `.codex`, `.claude`, or similar provider directories.
 - Swarm remains a local orchestrator-worker runtime.
 - Remote control is not Swarm task state.
+- Provider prompts should keep remote-control behavior mostly out-of-band.
+  Remote-control forwarding is bridge behavior, not something agents should reason about every turn.
+- `NOTIFY HUMAN` should not be used as a magic phrase. Explicit commands such as `everywhere feishu notify` are the escalation surface.
+- Everywhere remains a Python runtime/tool. Agent-facing behavior should live in an Everywhere Skill.
+- Agents can discover the current Feishu thread with `everywhere feishu current --json` and use `lark-cli` directly for short-term artifact upload.
 - Feishu thread topic maps to one tmux session.
 - The tmux session name is the topic name.
 - Window `0` must be named with the `orchestrator` prefix.
@@ -42,6 +47,7 @@ It lets a human temporarily control and observe a local terminal agent session f
 - Event and outbound-message dedupe.
 - Basic restart loop for `lark-cli event consume`.
 - Python packaging through `pyproject.toml`, with `everywhere` and `feishu-bridge` console scripts.
+- `skills/everywhere/SKILL.md` plus `.skillignore` so `npx skills add` can install only agent-facing guidance.
 - Unit tests for state, binding lookup, dedupe, text splitting, tmux paste, Codex/Claude transcript parsing, Markdown post conversion, and attachment key extraction.
 
 ## Known Gaps
@@ -59,7 +65,7 @@ It lets a human temporarily control and observe a local terminal agent session f
 - Logs are metadata-oriented, but the privacy/security model is not documented.
 - There is no documented push/release workflow.
 
-## NOTIFY HUMAN Open Question
+## Human Escalation
 
 Remote-control delivery and task-state paging should be designed separately.
 
@@ -67,8 +73,8 @@ Current working interpretation:
 
 - When remote control is attached, assistant final answers are forwarded by the bridge automatically.
 - Agents should not need to emit `NOTIFY HUMAN` only to make Feishu delivery happen.
-- `NOTIFY HUMAN` may still be useful as an explicit semantic signal for task-state paging, escalation, or async attention.
-- Whether `NOTIFY HUMAN` remains, changes shape, or moves into a separate paging mechanism is not decided.
+- Agents should use explicit commands for human paging, such as `everywhere feishu notify`.
+- Rich handoff is not a separate command. If an agent needs to send a local artifact, the bridge should upload the file or image into the Feishu thread.
 
 ## Review Questions
 

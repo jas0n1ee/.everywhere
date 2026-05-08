@@ -26,10 +26,7 @@ Examples:
 
 
 def run_install(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(prog="everywhere install", description="Check local Everywhere prerequisites")
-    parser.add_argument("--strict", action="store_true", help="Exit non-zero when required tools are missing")
-    args = parser.parse_args(argv)
-    return install.main(["--strict"] if args.strict else [])
+    return install.main(argv)
 
 
 def main(argv: list[str] | None = None) -> int:

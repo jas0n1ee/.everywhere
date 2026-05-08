@@ -10,6 +10,7 @@ from pathlib import Path
 
 
 STATE_DIR = Path("~/.everywhere/feishu-bridge").expanduser()
+DEFAULT_SKILL_SOURCE = "jas0n1ee/.everywhere"
 
 
 def log(message: str) -> None:
@@ -62,6 +63,42 @@ def ensure_state_dir() -> None:
     log(f"state dir: {STATE_DIR}")
 
 
+def install_skill(source: str, strict: bool) -> bool:
+    if not shutil.which("npx"):
+        message = "npx not found on PATH; skipping Everywhere skill install"
+        if strict:
+            print(f"[everywhere install] error: {message}", file=sys.stderr)
+        else:
+            warn(message)
+        return False
+    command = [
+        "npx",
+        "skills",
+        "add",
+        source,
+        "--global",
+        "--full-depth",
+        "--agent",
+        "codex",
+        "claude-code",
+        "--skill",
+        "everywhere",
+        "--yes",
+        "--copy",
+    ]
+    result = subprocess.run(command, text=True, capture_output=True, check=False)
+    if result.returncode == 0:
+        log(f"skill installed from {source}")
+        return True
+    detail = result.stderr.strip() or result.stdout.strip() or f"exit {result.returncode}"
+    message = f"skill install failed from {source}: {detail}"
+    if strict:
+        print(f"[everywhere install] error: {message}", file=sys.stderr)
+    else:
+        warn(message)
+    return False
+
+
 def print_next_steps() -> None:
     print()
     print("Next steps:")
@@ -73,25 +110,31 @@ def print_next_steps() -> None:
     print("     everywhere feishu run")
     print("  4. In the target tmux session, attach remote control:")
     print("     everywhere feishu attach")
+    print("  5. Agents can inspect the current Feishu thread:")
+    print("     everywhere feishu current --json")
     print()
     print("Update:")
     print("  uv tool upgrade jas0n1ee-everywhere")
     print("  everywhere install")
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Check local Everywhere prerequisites")
     parser.add_argument("--strict", action="store_true", help="Exit non-zero when required tools are missing")
-    return parser.parse_args()
+    parser.add_argument("--skip-skill-install", action="store_true", help="Skip installing the Everywhere skill")
+    parser.add_argument("--skill-source", default=DEFAULT_SKILL_SOURCE, help="Skill source passed to `npx skills add`")
+    return parser.parse_args(argv)
 
 
-def main() -> int:
-    args = parse_args()
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
     checks = [
         check_python(),
         check_lark_cli(strict=args.strict),
     ]
     ensure_state_dir()
+    if not args.skip_skill_install:
+        checks.append(install_skill(args.skill_source, strict=args.strict))
     print_next_steps()
     if args.strict and not all(checks):
         return 1

@@ -1,0 +1,9 @@
+# The Everywhere runtime lives at the repository root.
+# Keep this skill directory agent-facing only.
+*
+!SKILL.md
+!.skillignore
+!agents/
+!agents/**
+!references/
+!references/**

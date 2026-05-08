@@ -32,6 +32,16 @@ The installer is idempotent. It checks local tools, creates
 `~/.everywhere/feishu-bridge/`, and prints the next setup steps. It does not
 delete existing bridge bindings, logs, or local Feishu state.
 
+It also installs the Everywhere Skill globally with:
+
+```bash
+npx skills add jas0n1ee/.everywhere --global --full-depth --agent codex claude-code --skill everywhere --yes --copy
+```
+
+The Skill lives under `skills/everywhere/` and has a `.skillignore` whitelist so
+the installed Skill contains agent-facing instructions, not the Python runtime
+code.
+
 If you use `pipx` instead of `uv`:
 
 ```bash
@@ -50,7 +60,7 @@ During local development from a repo checkout:
 
 ```bash
 uv tool install --editable .
-everywhere install
+everywhere install --skill-source .
 ```
 
 The Python package exposes:
@@ -70,6 +80,7 @@ everywhere feishu attach
 everywhere feishu detach
 everywhere feishu notify
 everywhere feishu status
+everywhere feishu current
 ```
 
 The bridge stores state under:
@@ -255,6 +266,25 @@ Send a longer Markdown handoff:
 ```bash
 feishu-bridge notify --message-file /path/to/handoff.md
 ```
+
+## Agent Artifact Upload
+
+When an agent needs to send a local file or image to the human, first identify
+the current attached Feishu thread:
+
+```bash
+everywhere feishu current --json
+```
+
+Use the returned `root_message_id` with `lark-cli`:
+
+```bash
+lark-cli im +messages-reply --message-id <root_message_id> --reply-in-thread --image /path/to/image.png --as bot
+lark-cli im +messages-reply --message-id <root_message_id> --reply-in-thread --file /path/to/file.pdf --as bot
+```
+
+Do this only when the human explicitly asks for an artifact or when the artifact
+is clearly part of the requested delivery.
 
 ## Detach And Status
 
