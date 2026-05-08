@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jas0n1ee-everywhere"
+version = "0.1.0"
+description = "Local remote-control transports for agent sessions"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "UNLICENSED" }
+authors = [
+  { name = "Jason Lee" }
+]
+
+[project.scripts]
+everywhere = "everywhere.cli:main"
+feishu-bridge = "everywhere.feishu_bridge:main"
+
+[tool.setuptools]
+packages = ["everywhere"]

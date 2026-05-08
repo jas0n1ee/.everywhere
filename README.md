@@ -10,26 +10,41 @@ Feishu is the first bridge. The repository boundary is intentionally broader:
 
 ## Install
 
-Run the installer with npm:
+Install the CLI as a Python user tool:
 
 ```bash
-npx @jas0n1ee/everywhere install
+uv tool install git+https://github.com/jas0n1ee/.everywhere.git
+everywhere install
+```
+
+If `everywhere` is not on your shell path after installation, run:
+
+```bash
+uv tool update-shell
 ```
 
 The installer is idempotent. It checks local prerequisites, creates bridge state under
 `~/.everywhere/feishu-bridge/`, and prints the next setup steps.
 
-For regular use, install the CLI globally:
+If you use `pipx` instead of `uv`:
 
 ```bash
-npm install -g @jas0n1ee/everywhere
+pipx install git+https://github.com/jas0n1ee/.everywhere.git
 everywhere install
 ```
 
-During local development from a checkout, use the repo binary directly:
+Fallback user install:
 
 ```bash
-./bin/everywhere install
+python3 -m pip install --user git+https://github.com/jas0n1ee/.everywhere.git
+everywhere install
+```
+
+During local development from a checkout:
+
+```bash
+uv tool install --editable .
+everywhere install
 ```
 
 ## Feishu Bridge
@@ -63,24 +78,25 @@ requirements, bootstrap, attach, and troubleshooting.
 
 ## Update
 
-If you use `npx`, run the latest package explicitly:
+If you installed with `uv tool`:
 
 ```bash
-npx @jas0n1ee/everywhere@latest install
-```
-
-If you installed globally:
-
-```bash
-npm install -g @jas0n1ee/everywhere@latest
+uv tool upgrade jas0n1ee-everywhere
 everywhere install
 ```
 
-If you are using a git checkout:
+If you installed with `pipx`:
 
 ```bash
-git pull
-./bin/everywhere install
+pipx upgrade jas0n1ee-everywhere
+everywhere install
+```
+
+If you installed with `pip --user`:
+
+```bash
+python3 -m pip install --user --upgrade git+https://github.com/jas0n1ee/.everywhere.git
+everywhere install
 ```
 
 Re-running `install` after an update is safe. Existing Feishu bridge bindings and

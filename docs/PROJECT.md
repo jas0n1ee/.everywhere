@@ -41,6 +41,7 @@ It lets a human temporarily control and observe a local terminal agent session f
 - Text splitting for long outbound messages.
 - Event and outbound-message dedupe.
 - Basic restart loop for `lark-cli event consume`.
+- Python packaging through `pyproject.toml`, with `everywhere` and `feishu-bridge` console scripts.
 - Unit tests for state, binding lookup, dedupe, text splitting, tmux paste, Codex/Claude transcript parsing, Markdown post conversion, and attachment key extraction.
 
 ## Known Gaps

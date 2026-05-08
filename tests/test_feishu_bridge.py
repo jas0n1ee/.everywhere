@@ -7,12 +7,9 @@ from pathlib import Path
 import sys
 
 repo_root = Path(__file__).resolve().parents[1]
-scripts_dir = repo_root / "scripts"
-if not scripts_dir.exists():
-    scripts_dir = repo_root / ".codex" / "scripts"
-sys.path.insert(0, str(scripts_dir))
+sys.path.insert(0, str(repo_root))
 
-import feishu_bridge as bridge  # noqa: E402
+from everywhere import feishu_bridge as bridge  # noqa: E402
 
 
 def completed(stdout: str = "", returncode: int = 0) -> subprocess.CompletedProcess[str]:

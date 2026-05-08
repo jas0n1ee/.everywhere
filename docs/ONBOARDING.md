@@ -15,36 +15,45 @@ Swarm remains separate. Swarm may call the bridge, but Everywhere does not own w
 
 ## Install
 
-Preferred one-time install check:
+Preferred user install:
 
 ```bash
-npx @jas0n1ee/everywhere install
+uv tool install git+https://github.com/jas0n1ee/.everywhere.git
+everywhere install
+```
+
+If `everywhere` is not on your shell path after installation, run:
+
+```bash
+uv tool update-shell
 ```
 
 The installer is idempotent. It checks local tools, creates
 `~/.everywhere/feishu-bridge/`, and prints the next setup steps. It does not
 delete existing bridge bindings, logs, or local Feishu state.
 
-For persistent local use, install it globally:
+If you use `pipx` instead of `uv`:
 
 ```bash
-npm install -g @jas0n1ee/everywhere
+pipx install git+https://github.com/jas0n1ee/.everywhere.git
 everywhere install
 ```
 
-During local development from a repo checkout, run:
+Fallback user install:
 
 ```bash
-./bin/everywhere install
+python3 -m pip install --user git+https://github.com/jas0n1ee/.everywhere.git
+everywhere install
 ```
 
-or add the repo `bin` directory to your shell PATH:
+During local development from a repo checkout:
 
 ```bash
-export PATH="/path/to/.everywhere/bin:$PATH"
+uv tool install --editable .
+everywhere install
 ```
 
-The package exposes:
+The Python package exposes:
 
 ```bash
 everywhere install
@@ -71,24 +80,25 @@ The bridge stores state under:
 
 ## Update
 
-For `npx` usage, request the latest package when you want a fresh copy:
+For `uv tool` installs:
 
 ```bash
-npx @jas0n1ee/everywhere@latest install
-```
-
-For a global install:
-
-```bash
-npm install -g @jas0n1ee/everywhere@latest
+uv tool upgrade jas0n1ee-everywhere
 everywhere install
 ```
 
-For a git checkout:
+For `pipx` installs:
 
 ```bash
-git pull
-./bin/everywhere install
+pipx upgrade jas0n1ee-everywhere
+everywhere install
+```
+
+For `pip --user` installs:
+
+```bash
+python3 -m pip install --user --upgrade git+https://github.com/jas0n1ee/.everywhere.git
+everywhere install
 ```
 
 Run `everywhere install` after updating. It is safe to run repeatedly and keeps
