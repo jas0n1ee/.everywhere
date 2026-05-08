@@ -13,7 +13,7 @@ Feishu is the first bridge. The repository boundary is intentionally broader:
 Install the CLI as a Python user tool:
 
 ```bash
-uv tool install git+https://github.com/jas0n1ee/.everywhere.git
+uv tool install jas0n1ee-everywhere
 everywhere install
 ```
 
@@ -30,14 +30,21 @@ and prints the next setup steps.
 If you use `pipx` instead of `uv`:
 
 ```bash
-pipx install git+https://github.com/jas0n1ee/.everywhere.git
+pipx install jas0n1ee-everywhere
 everywhere install
 ```
 
 Fallback user install:
 
 ```bash
-python3 -m pip install --user git+https://github.com/jas0n1ee/.everywhere.git
+python3 -m pip install --user jas0n1ee-everywhere
+everywhere install
+```
+
+To install directly from GitHub instead of PyPI:
+
+```bash
+uv tool install git+https://github.com/jas0n1ee/.everywhere.git
 everywhere install
 ```
 
@@ -101,7 +108,7 @@ everywhere install
 If you installed with `pip --user`:
 
 ```bash
-python3 -m pip install --user --upgrade git+https://github.com/jas0n1ee/.everywhere.git
+python3 -m pip install --user --upgrade jas0n1ee-everywhere
 everywhere install
 ```
 
@@ -118,3 +125,19 @@ everywhere check
 
 This runs unit tests, builds a wheel, and verifies the Skill can be discovered
 with `npx skills add . --list --full-depth`.
+
+## Release
+
+Everywhere is published to PyPI as `jas0n1ee-everywhere`.
+
+For maintainers, publish a new version with:
+
+```bash
+python3 -m everywhere check
+rm -rf dist
+uv build
+uv publish
+```
+
+`UV_PUBLISH_TOKEN` must be exported in the publishing shell. PyPI does not allow
+re-uploading the same version, so bump `project.version` before each release.
