@@ -236,6 +236,37 @@ def test_parse_claude_assistant_text_entry() -> None:
     assert bridge.parse_claude_final_entry(entry) == ("claude-turn-1", "visible final")
 
 
+def test_parse_claude_end_turn_falls_back_to_thinking_without_text() -> None:
+    entry = {
+        "type": "assistant",
+        "uuid": "claude-turn-1",
+        "message": {
+            "id": "msg_1",
+            "role": "assistant",
+            "stop_reason": "end_turn",
+            "content": [{"type": "thinking", "thinking": "fallback final"}],
+        },
+    }
+    assert bridge.parse_claude_final_entry(entry) == ("claude-turn-1", "fallback final")
+
+
+def test_parse_claude_tool_use_without_text_is_not_final() -> None:
+    entry = {
+        "type": "assistant",
+        "uuid": "claude-turn-1",
+        "message": {
+            "id": "msg_1",
+            "role": "assistant",
+            "stop_reason": "tool_use",
+            "content": [
+                {"type": "thinking", "thinking": "about to run a tool"},
+                {"type": "tool_use", "name": "Bash", "input": {"command": "pwd"}},
+            ],
+        },
+    }
+    assert bridge.parse_claude_final_entry(entry) == (None, None)
+
+
 def test_read_claude_final_messages_from_offset(tmp_path: Path) -> None:
     path = tmp_path / "claude.jsonl"
     first = json.dumps({"type": "user", "cwd": str(tmp_path), "message": {"role": "user", "content": "hi"}}) + "\n"
@@ -255,6 +286,37 @@ def test_read_claude_final_messages_from_offset(tmp_path: Path) -> None:
     )
     messages, new_offset = bridge.read_claude_final_messages(path, offset)
     assert messages == [("claude-turn-1", "done")]
+    assert new_offset == path.stat().st_size
+
+
+def test_read_claude_final_messages_prefers_text_over_thinking_chunk(tmp_path: Path) -> None:
+    path = tmp_path / "claude.jsonl"
+    first = json.dumps({"type": "user", "cwd": str(tmp_path), "message": {"role": "user", "content": "hi"}}) + "\n"
+    path.write_text(first, encoding="utf-8")
+    offset = path.stat().st_size
+    thinking_chunk = {
+        "type": "assistant",
+        "uuid": "claude-thinking",
+        "message": {
+            "id": "msg_1",
+            "role": "assistant",
+            "stop_reason": "end_turn",
+            "content": [{"type": "thinking", "thinking": "fallback final"}],
+        },
+    }
+    text_chunk = {
+        "type": "assistant",
+        "uuid": "claude-text",
+        "message": {
+            "id": "msg_1",
+            "role": "assistant",
+            "stop_reason": "end_turn",
+            "content": [{"type": "text", "text": "visible final"}],
+        },
+    }
+    path.write_text(first + json.dumps(thinking_chunk) + "\n" + json.dumps(text_chunk) + "\n", encoding="utf-8")
+    messages, new_offset = bridge.read_claude_final_messages(path, offset)
+    assert messages == [("claude-text", "visible final")]
     assert new_offset == path.stat().st_size
 
 

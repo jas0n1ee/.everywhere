@@ -861,7 +861,7 @@ def read_claude_final_messages(path: Path, offset: int) -> tuple[list[tuple[str,
     size = path.stat().st_size
     if offset > size:
         offset = 0
-    messages: list[tuple[str, str]] = []
+    groups: dict[str, dict[str, Any]] = {}
     with path.open(encoding="utf-8") as handle:
         handle.seek(offset)
         for line in handle:
@@ -869,33 +869,67 @@ def read_claude_final_messages(path: Path, offset: int) -> tuple[list[tuple[str,
                 entry = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            message_id, text = parse_claude_final_entry(entry)
-            if message_id and text:
-                messages.append((message_id, text))
+            parts = claude_final_entry_parts(entry)
+            if not parts:
+                continue
+            group = groups.setdefault(parts["group_id"], {"texts": [], "text_id": parts["message_id"], "fallbacks": [], "fallback_id": parts["message_id"]})
+            if parts["texts"]:
+                group["texts"].extend(parts["texts"])
+                group["text_id"] = parts["message_id"]
+            elif parts["fallbacks"]:
+                group["fallbacks"].extend(parts["fallbacks"])
+                group["fallback_id"] = parts["message_id"]
         new_offset = handle.tell()
+    messages: list[tuple[str, str]] = []
+    for group in groups.values():
+        if group["texts"]:
+            messages.append((group["text_id"], "\n\n".join(group["texts"])))
+        elif group["fallbacks"]:
+            messages.append((group["fallback_id"], "\n\n".join(group["fallbacks"])))
     return messages, new_offset
 
 
 def parse_claude_final_entry(entry: dict[str, Any]) -> tuple[str | None, str | None]:
-    if entry.get("type") != "assistant":
+    parts = claude_final_entry_parts(entry)
+    if not parts:
         return None, None
-    message = entry.get("message")
-    if not isinstance(message, dict) or message.get("role") != "assistant":
-        return None, None
-    content = message.get("content")
-    if not isinstance(content, list):
-        return None, None
-    texts: list[str] = []
-    for item in content:
-        if not isinstance(item, dict) or item.get("type") != "text":
-            continue
-        text = item.get("text")
-        if isinstance(text, str) and text.strip():
-            texts.append(text)
+    texts = parts["texts"] or parts["fallbacks"]
     if not texts:
         return None, None
+    return parts["message_id"], "\n\n".join(texts)
+
+
+def claude_final_entry_parts(entry: dict[str, Any]) -> dict[str, Any] | None:
+    if entry.get("type") != "assistant":
+        return None
+    message = entry.get("message")
+    if not isinstance(message, dict) or message.get("role") != "assistant":
+        return None
+    content = message.get("content")
+    if not isinstance(content, list):
+        return None
+    texts: list[str] = []
+    fallbacks: list[str] = []
+    for item in content:
+        if not isinstance(item, dict):
+            continue
+        if item.get("type") == "text":
+            text = item.get("text")
+            if isinstance(text, str) and text.strip():
+                texts.append(text.strip())
+    if not texts and message.get("stop_reason") == "end_turn":
+        for item in content:
+            if not isinstance(item, dict) or item.get("type") != "thinking":
+                continue
+            thinking = item.get("thinking")
+            if isinstance(thinking, str) and thinking.strip():
+                fallbacks.append(thinking.strip())
+    if not texts and not fallbacks:
+        return None
     message_id = str(entry.get("uuid") or entry.get("timestamp") or "")
-    return message_id, "\n\n".join(texts)
+    message_obj_id = message.get("id")
+    group_id = str(message_obj_id) if isinstance(message_obj_id, str) and message_obj_id else message_id
+    return {"group_id": group_id, "message_id": message_id, "texts": texts, "fallbacks": fallbacks}
 
 
 def send_thread_text(lark: LarkClient, binding: Binding, text: str, artifact_id: str) -> None:
