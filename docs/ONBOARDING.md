@@ -1,12 +1,13 @@
 # Everywhere Feishu Bridge Onboarding
 
-This guide gets a local tmux agent session connected to a Feishu thread so a human can observe and control it remotely.
+This guide gets a local tmux agent session connected to a Feishu thread so a
+human can observe and control it remotely.
 
 ## What Everywhere Provides
 
 Everywhere is a transport runtime. The current bridge is Feishu:
 
-- inbound Feishu replies are pasted into tmux window `0`
+- inbound Feishu replies are pasted into the orchestrator pane in tmux window `0`
 - assistant final replies are forwarded back to the Feishu thread from provider transcripts
 - manual notifications can be sent with `feishu-bridge notify`
 
@@ -14,25 +15,30 @@ Swarm remains separate. Swarm may call the bridge, but Everywhere does not own w
 
 ## Install
 
-Preferred install check:
+Preferred one-time install check:
 
 ```bash
 npx @jas0n1ee/everywhere install
 ```
 
-For persistent local use after the package is published, install it globally:
+The installer is idempotent. It checks local tools, creates
+`~/.everywhere/feishu-bridge/`, and prints the next setup steps. It does not
+delete existing bridge bindings, logs, or local Feishu state.
+
+For persistent local use, install it globally:
 
 ```bash
 npm install -g @jas0n1ee/everywhere
+everywhere install
 ```
 
-During local development from a repo checkout, either call the bridge directly:
+During local development from a repo checkout, run:
 
 ```bash
-/path/to/.everywhere/bin/feishu-bridge --help
+./bin/everywhere install
 ```
 
-or add the bridge to your shell PATH:
+or add the repo `bin` directory to your shell PATH:
 
 ```bash
 export PATH="/path/to/.everywhere/bin:$PATH"
@@ -46,11 +52,47 @@ everywhere feishu <command>
 feishu-bridge <command>
 ```
 
+The stable Feishu bridge command set is:
+
+```bash
+everywhere feishu run
+everywhere feishu bootstrap-chat
+everywhere feishu attach
+everywhere feishu detach
+everywhere feishu notify
+everywhere feishu status
+```
+
 The bridge stores state under:
 
 ```text
 ~/.everywhere/feishu-bridge/
 ```
+
+## Update
+
+For `npx` usage, request the latest package when you want a fresh copy:
+
+```bash
+npx @jas0n1ee/everywhere@latest install
+```
+
+For a global install:
+
+```bash
+npm install -g @jas0n1ee/everywhere@latest
+everywhere install
+```
+
+For a git checkout:
+
+```bash
+git pull
+./bin/everywhere install
+```
+
+Run `everywhere install` after updating. It is safe to run repeatedly and keeps
+existing state in place.
 
 ## lark-cli Setup
 
@@ -92,7 +134,8 @@ The app must be able to receive message events for the target chat and send bot 
 
 ## Bootstrap A Default Chat
 
-`attach` creates a root Feishu message in the default chat. Configure that chat first.
+`attach` creates a root Feishu message in the default chat. Configure that chat
+first.
 
 If you already know the chat id:
 
@@ -112,7 +155,8 @@ If you want the bridge to capture the first observed chat from message events:
 feishu-bridge bootstrap-chat
 ```
 
-Then send a message in the target Feishu chat and follow the prompt. For non-interactive bootstrap, accept the first observed chat:
+Then send a message in the target Feishu chat and follow the prompt. For
+non-interactive bootstrap, accept the first observed chat:
 
 ```bash
 feishu-bridge bootstrap-chat --yes
@@ -156,6 +200,7 @@ Requirements:
 
 - you are inside tmux
 - tmux window `0` is the agent/orchestrator window
+- pane `0` in window `0` is the orchestrator pane
 - window `0` name starts with `orchestrator`
 - a default Feishu chat is configured
 - `feishu-bridge run` is running or will be started soon
@@ -185,7 +230,7 @@ The bridge will:
 Remote Control attached.
 ```
 
-Human replies in that Feishu thread are pasted into tmux window `0`.
+Human replies in that Feishu thread are pasted into pane `0` of tmux window `0`.
 
 ## Manual Notify
 

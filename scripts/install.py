@@ -73,6 +73,10 @@ def print_next_steps() -> None:
     print("     everywhere feishu run")
     print("  4. In the target tmux session, attach remote control:")
     print("     everywhere feishu attach")
+    print()
+    print("Update:")
+    print("  npm install -g @jas0n1ee/everywhere@latest")
+    print("  everywhere install")
 
 
 def parse_args() -> argparse.Namespace:
