@@ -12,4 +12,7 @@
 - Decide how non-Feishu bridges should share common code with `feishu_bridge.py`.
   Feishu is the first bridge, not the whole Everywhere transport layer.
 - Decide whether attachments are v1 bridge behavior or a Feishu-specific extension.
+- Add a first-class handoff-to-human command that can publish a local Markdown handoff as a Feishu doc and return the doc URL.
+  Current observed behavior: creating the doc as bot and sending the URL into the Feishu conversation is enough for Feishu to render the title and for the human to read it.
+  The command should rely on that path first, then only add explicit permission management if a future target chat cannot read the created doc.
 - Add a review gate before committing bridge and provider-prompt changes.
