@@ -499,6 +499,10 @@ def extract_text(event: dict[str, Any]) -> str | None:
             return str(content_obj.get("text", "")).strip()
         return str(content_obj).strip()
     if msg_type == "post":
+        if isinstance(content_obj, dict) and isinstance(content_obj.get("text"), str):
+            return content_obj["text"].strip()
+        if isinstance(content_obj, str):
+            return content_obj.strip()
         return flatten_post_text(content_obj).strip()
     return None
 

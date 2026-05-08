@@ -114,6 +114,11 @@ def test_extract_text_from_text_event() -> None:
     assert bridge.extract_text(event) == "hello"
 
 
+def test_extract_text_from_rendered_post_event() -> None:
+    event = {"message_type": "post", "content": "我给你发一些markdown 格式再进行一下测试"}
+    assert bridge.extract_text(event) == "我给你发一些markdown 格式再进行一下测试"
+
+
 def test_ack_bootstrap_message_adds_reaction() -> None:
     calls: list[str] = []
 
