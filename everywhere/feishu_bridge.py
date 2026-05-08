@@ -274,30 +274,6 @@ class LarkClient:
             command.extend(["--idempotency-key", idempotency_key])
         return self._json(command)
 
-    def reply_file(self, root_message_id: str, path: Path, idempotency_key: str | None = None) -> dict[str, Any]:
-        return self._reply_media(root_message_id, "--file", path, idempotency_key)
-
-    def reply_image(self, root_message_id: str, path: Path, idempotency_key: str | None = None) -> dict[str, Any]:
-        return self._reply_media(root_message_id, "--image", path, idempotency_key)
-
-    def _reply_media(self, root_message_id: str, flag: str, path: Path, idempotency_key: str | None = None) -> dict[str, Any]:
-        resolved = path.expanduser().resolve()
-        command = [
-            "lark-cli",
-            "im",
-            "+messages-reply",
-            "--message-id",
-            root_message_id,
-            flag,
-            resolved.name,
-            "--reply-in-thread",
-            "--as",
-            "bot",
-        ]
-        if idempotency_key:
-            command.extend(["--idempotency-key", idempotency_key])
-        return self._json(command, cwd=resolved.parent)
-
     def add_ack_reaction(self, message_id: str, emoji_type: str = ACK_REACTION) -> None:
         self._json(
             [
@@ -358,8 +334,8 @@ class LarkClient:
         saved_path = payload.get("data", {}).get("saved_path") if isinstance(payload, dict) else None
         return Path(saved_path) if isinstance(saved_path, str) and saved_path else output
 
-    def _json(self, command: list[str], cwd: Path | None = None) -> dict[str, Any]:
-        result = self.runner(command, text=True, capture_output=True, check=False, cwd=str(cwd) if cwd else None)
+    def _json(self, command: list[str]) -> dict[str, Any]:
+        result = self.runner(command, text=True, capture_output=True, check=False)
         if result.returncode != 0:
             raise RuntimeError(result.stderr.strip() or "lark-cli command failed")
         if not result.stdout.strip():
@@ -1100,41 +1076,6 @@ def cmd_notify(args: argparse.Namespace) -> int:
     return 0
 
 
-def upload_thread_artifact(lark: LarkClient, binding: Binding, *, artifact_type: str, path: Path, message: str | None = None) -> None:
-    resolved = path.expanduser().resolve()
-    if not resolved.is_file():
-        raise RuntimeError(f"Artifact path is not a file: {path}")
-    if message:
-        send_thread_text(lark, binding, message, idempotency_key(binding.topic, "upload-message", str(resolved), message))
-    artifact_id = idempotency_key(binding.topic, "upload", artifact_type, str(resolved), str(resolved.stat().st_mtime_ns))
-    if artifact_type == "image":
-        lark.reply_image(binding.root_message_id, resolved, idempotency_key=artifact_id)
-    elif artifact_type == "file":
-        lark.reply_file(binding.root_message_id, resolved, idempotency_key=artifact_id)
-    else:
-        raise RuntimeError(f"Unsupported artifact type: {artifact_type}")
-
-
-def cmd_upload(args: argparse.Namespace) -> int:
-    state = BridgeState(args.state_dir)
-    topic = TmuxClient().current_session()
-    binding = state.binding_for_topic(topic)
-    if not binding:
-        raise RuntimeError(f"No binding for current tmux session '{topic}'. Run feishu-bridge attach first.")
-    message = args.message
-    if args.message_file:
-        message = Path(args.message_file).read_text(encoding="utf-8")
-    if args.image:
-        artifact_type = "image"
-        path = Path(args.image)
-    else:
-        artifact_type = "file"
-        path = Path(args.file)
-    upload_thread_artifact(LarkClient(), binding, artifact_type=artifact_type, path=path, message=message)
-    print(f"Uploaded {artifact_type} for {topic} to root {binding.root_message_id}: {path}")
-    return 0
-
-
 def binding_status_payload(binding: Binding) -> dict[str, Any]:
     return {
         "topic": binding.topic,
@@ -1219,15 +1160,6 @@ def build_parser() -> argparse.ArgumentParser:
     group.add_argument("--message")
     group.add_argument("--message-file")
     notify.set_defaults(func=cmd_notify)
-
-    upload = subparsers.add_parser("upload", help="Upload a local file or image to the current Feishu thread")
-    artifact = upload.add_mutually_exclusive_group(required=True)
-    artifact.add_argument("--image", help="Local image path to upload")
-    artifact.add_argument("--file", help="Local file path to upload")
-    caption = upload.add_mutually_exclusive_group()
-    caption.add_argument("--message", help="Optional message to send before the artifact")
-    caption.add_argument("--message-file", help="Optional Markdown/text file to send before the artifact")
-    upload.set_defaults(func=cmd_upload)
 
     current = subparsers.add_parser("current", help="Show the current tmux session binding")
     current.add_argument("--json", action="store_true", help="Print machine-readable binding JSON")

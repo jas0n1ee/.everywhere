@@ -16,7 +16,7 @@ It lets a human temporarily control and observe a local terminal agent session f
   Remote-control forwarding is bridge behavior, not something agents should reason about every turn.
 - `NOTIFY HUMAN` should not be used as a magic phrase. Explicit commands such as `everywhere feishu notify` are the escalation surface.
 - Everywhere remains a Python runtime/tool. Agent-facing behavior should live in an Everywhere Skill.
-- Agents can discover the current Feishu thread with `everywhere feishu current --json` and upload artifacts with `everywhere feishu upload --image/--file`.
+- Agents can discover the current Feishu thread with `everywhere feishu current --json` and upload artifacts by calling `lark-cli im +messages-reply --image/--file` from the artifact directory.
 - Feishu thread topic maps to one tmux session.
 - The tmux session name is the topic name.
 - Window `0` must look like an agent window. By default, names starting with `orchestrator`, `claude`, `codex`, or `node` are accepted.
@@ -38,6 +38,7 @@ It lets a human temporarily control and observe a local terminal agent session f
 - Binding storage for topic, chat id, root message id, optional thread id, transcript path, offsets, and remote-control state.
 - Inbound Feishu text/post routing into tmux window `0`.
 - Inbound attachment download for supported image/file resource keys, injecting the saved local path into tmux.
+- Attachments are a supported Feishu bridge v1 feature, not a transport-neutral Everywhere abstraction yet.
 - Inbound ACK reaction after successful delivery.
 - Detached state ignores inbound events and suppresses outbound forwarding.
 - Codex outbound capture from JSONL `task_complete.last_agent_message`.
@@ -58,7 +59,6 @@ It lets a human temporarily control and observe a local terminal agent session f
 - Claude final-answer detection is heuristic; transcript hooks may be better.
 - Codex hook support has not been researched or implemented.
 - Markdown-to-Feishu post rendering is basic and still needs edge-case review.
-- Attachment support exists, but the intended v1 product boundary is unresolved.
 - No E2E test harness exists for a real Feishu test chat.
 - No process supervisor config exists.
 - No structured config schema or migration layer exists.
@@ -74,7 +74,7 @@ Current working interpretation:
 - When remote control is attached, assistant final answers are forwarded by the bridge automatically.
 - Agents should not need to emit `NOTIFY HUMAN` only to make Feishu delivery happen.
 - Agents should use explicit commands for human paging, such as `everywhere feishu notify`.
-- Rich handoff is not a separate command. If an agent needs to send a local artifact, use `everywhere feishu upload --image/--file`.
+- Rich handoff is not a separate command. If an agent needs to send a local artifact, use the Everywhere Skill workflow: inspect the current binding, then call `lark-cli` from the artifact directory with a relative file name.
 
 ## Review Questions
 

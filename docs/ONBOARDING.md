@@ -81,7 +81,6 @@ everywhere feishu detach
 everywhere feishu notify
 everywhere feishu status
 everywhere feishu current
-everywhere feishu upload
 ```
 
 The bridge stores state under:
@@ -279,16 +278,31 @@ feishu-bridge notify --message-file /path/to/handoff.md
 
 ## Agent Artifact Upload
 
-When an agent needs to send a local file or image to the human, upload it to
+When an agent needs to send a local file or image to the human, first identify
 the current attached Feishu thread:
 
 ```bash
-everywhere feishu upload --image /path/to/image.png --message "optional caption"
-everywhere feishu upload --file /path/to/file.pdf --message "optional caption"
+everywhere feishu current --json
+```
+
+Use the returned `root_message_id` with `lark-cli`. `lark-cli` requires
+`--image` and `--file` paths to be relative to the current working directory, so
+`cd` to the artifact directory first and pass only the file name:
+
+```bash
+cd /path/to
+lark-cli im +messages-reply --message-id <root_message_id> --reply-in-thread --image image.png --as bot
+lark-cli im +messages-reply --message-id <root_message_id> --reply-in-thread --file file.pdf --as bot
 ```
 
 Do this only when the human explicitly asks for an artifact or when the artifact
 is clearly part of the requested delivery.
+
+Attachments are a supported Feishu bridge v1 feature:
+
+- inbound Feishu files/images are downloaded under `~/.everywhere/feishu-bridge/attachments/<topic>/` and their local paths are pasted into the agent session
+- outbound local files/images are sent by the agent with `lark-cli im +messages-reply --image/--file` after resolving the current binding
+- this is not yet a transport-neutral Everywhere attachment abstraction
 
 ## Detach And Status
 
