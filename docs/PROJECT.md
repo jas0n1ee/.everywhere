@@ -19,8 +19,8 @@ It lets a human temporarily control and observe a local terminal agent session f
 - Agents can discover the current Feishu thread with `everywhere feishu current --json` and use `lark-cli` directly for short-term artifact upload.
 - Feishu thread topic maps to one tmux session.
 - The tmux session name is the topic name.
-- Window `0` must be named with the `orchestrator` prefix.
-- Pane `0` in window `0` is the orchestrator pane that receives remote-control input.
+- Window `0` must look like an agent window. By default, names starting with `orchestrator`, `claude`, `codex`, or `node` are accepted.
+- Pane `0` in window `0` is the agent pane that receives remote-control input.
 
 ## Current Feishu Bridge Commands
 

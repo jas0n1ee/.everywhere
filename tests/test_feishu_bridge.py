@@ -81,6 +81,34 @@ def test_tmux_paste_input_uses_orchestrator_pane_zero() -> None:
     assert ["tmux", "send-keys", "-t", "my-topic:0.0", "Enter"] in calls
 
 
+def test_tmux_validate_accepts_common_agent_windows() -> None:
+    names = iter(["claude", "codex-main", "node"])
+
+    def runner(command, **kwargs):
+        return completed(next(names) + "\n")
+
+    tmux = bridge.TmuxClient(runner=runner)
+    tmux.validate_orchestrator("topic-a")
+    tmux.validate_orchestrator("topic-a")
+    tmux.validate_orchestrator("topic-a")
+
+
+def test_tmux_validate_rejects_non_agent_window() -> None:
+    def runner(command, **kwargs):
+        return completed("bash\n")
+
+    tmux = bridge.TmuxClient(runner=runner)
+    try:
+        tmux.validate_orchestrator("topic-a")
+    except RuntimeError as exc:
+        assert "orchestrator*" in str(exc)
+        assert "claude*" in str(exc)
+        assert "codex*" in str(exc)
+        assert "node*" in str(exc)
+    else:
+        raise AssertionError("expected non-agent window name to be rejected")
+
+
 def test_tmux_pane_cwd_uses_orchestrator_pane_zero() -> None:
     calls: list[list[str]] = []
 

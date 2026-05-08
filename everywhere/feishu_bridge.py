@@ -2,9 +2,9 @@
 """Remote-control bridge between Feishu threads and local tmux agent sessions.
 
 The bridge is transport-only. A Feishu thread is bound to one tmux session, the
-session name is the topic, and window 0 must be named ``orchestrator*``. While
-attached, human text replies are pasted into that window's active pane and
-assistant final replies from provider transcripts are sent back to the thread.
+session name is the topic, and window 0 must look like an agent window. While
+attached, human text replies are pasted into pane 0 of that window and assistant
+final replies from provider transcripts are sent back to the thread.
 """
 
 from __future__ import annotations
@@ -31,6 +31,11 @@ DEFAULT_STATE_DIR = Path("~/.everywhere/feishu-bridge").expanduser()
 MAX_TEXT_CHARS = int(os.environ.get("FEISHU_BRIDGE_MAX_TEXT_CHARS", "3500"))
 ACK_REACTION = os.environ.get("FEISHU_BRIDGE_ACK_REACTION", "OnIt")
 SUBMIT_DELAY_SECONDS = float(os.environ.get("FEISHU_BRIDGE_SUBMIT_DELAY_SECONDS", "0.1"))
+AGENT_WINDOW_PREFIXES = tuple(
+    prefix.strip()
+    for prefix in os.environ.get("FEISHU_BRIDGE_AGENT_WINDOW_PREFIXES", "orchestrator,claude,codex,node").split(",")
+    if prefix.strip()
+)
 CODEX_SESSIONS_DIR = Path(os.environ.get("FEISHU_BRIDGE_CODEX_SESSIONS", "~/.codex/sessions")).expanduser()
 CLAUDE_PROJECTS_DIR = Path(os.environ.get("FEISHU_BRIDGE_CLAUDE_PROJECTS", "~/.claude/projects")).expanduser()
 
@@ -349,8 +354,9 @@ class TmuxClient:
 
     def validate_orchestrator(self, session: str) -> None:
         window_name = self._tmux(["display-message", "-p", "-t", f"{session}:0", "#{window_name}"]).strip()
-        if not window_name.startswith("orchestrator"):
-            raise RuntimeError(f"{session}:0 window must be named orchestrator*, got '{window_name}'")
+        if not window_name.startswith(AGENT_WINDOW_PREFIXES):
+            allowed = ", ".join(f"{prefix}*" for prefix in AGENT_WINDOW_PREFIXES)
+            raise RuntimeError(f"{session}:0 window must be named like an agent window ({allowed}), got '{window_name}'")
 
     def orchestrator_pane_target(self, session: str) -> str:
         return f"{session}:0.0"
