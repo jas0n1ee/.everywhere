@@ -505,6 +505,8 @@ def extract_text(event: dict[str, Any]) -> str | None:
 
 def extract_resource_key(event: dict[str, Any], enriched: dict[str, Any] | None = None) -> tuple[str | None, str | None]:
     msg_type = event_message_type(event)
+    if msg_type not in {"image", "file"}:
+        return None, None
     content = event.get("content")
     message = event.get("message") if isinstance(event.get("message"), dict) else {}
     candidates: list[Any] = [content, message.get("content")]
@@ -572,7 +574,7 @@ def flatten_post_text(content: Any) -> str:
     for line in locale.get("content", []) if isinstance(locale, dict) else []:
         line_text = ""
         for item in line:
-            if isinstance(item, dict) and item.get("tag") in {"text", "md", "at"}:
+            if isinstance(item, dict) and item.get("tag") in {"text", "md", "at", "code_inline"}:
                 line_text += str(item.get("text", ""))
         if line_text:
             pieces.append(line_text)

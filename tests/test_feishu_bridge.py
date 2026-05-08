@@ -363,6 +363,21 @@ def test_extract_file_resource_key_from_enriched() -> None:
     assert bridge.extract_resource_key(event, enriched) == ("file_v3_1", "file")
 
 
-def test_extract_post_image_placeholder_resource_key() -> None:
-    event = {"message_type": "post", "content": "[Image: img_v3_abc-123]"}
-    assert bridge.extract_resource_key(event) == ("img_v3_abc-123", "image")
+def test_extract_resource_key_ignores_post_inline_code_key_fields() -> None:
+    event = {
+        "message_type": "post",
+        "content": json.dumps(
+            {
+                "zh_cn": {
+                    "content": [
+                        [
+                            {"tag": "text", "text": "PyPI 的正常升级， bump 到 "},
+                            {"tag": "code_inline", "text": "0.1.1", "key": "file_not_an_attachment"},
+                        ]
+                    ]
+                }
+            }
+        ),
+    }
+    assert bridge.extract_text(event) == "PyPI 的正常升级， bump 到 0.1.1"
+    assert bridge.extract_resource_key(event) == (None, None)
