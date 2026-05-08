@@ -351,13 +351,16 @@ class TmuxClient:
         if not window_name.startswith("orchestrator"):
             raise RuntimeError(f"{session}:0 window must be named orchestrator*, got '{window_name}'")
 
+    def orchestrator_pane_target(self, session: str) -> str:
+        return f"{session}:0.0"
+
     def pane_cwd(self, session: str) -> str:
-        return self._tmux(["display-message", "-p", "-t", f"{session}:0", "#{pane_current_path}"]).strip()
+        return self._tmux(["display-message", "-p", "-t", self.orchestrator_pane_target(session), "#{pane_current_path}"]).strip()
 
     def paste_input(self, session: str, text: str) -> None:
         self.validate_orchestrator(session)
         buffer_name = f"feishu-bridge-{os.getpid()}"
-        target = f"{session}:0"
+        target = self.orchestrator_pane_target(session)
         payload = text if text.endswith("\n") else text + "\n"
         load = self.runner(["tmux", "load-buffer", "-b", buffer_name, "-"], input=payload, text=True, capture_output=True, check=False)
         if load.returncode != 0:

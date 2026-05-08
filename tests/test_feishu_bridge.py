@@ -61,7 +61,7 @@ def test_idempotency_key_stays_within_lark_limit() -> None:
     assert len(key) <= 50
 
 
-def test_tmux_paste_input_uses_current_session_target() -> None:
+def test_tmux_paste_input_uses_orchestrator_pane_zero() -> None:
     calls: list[list[str]] = []
 
     def runner(command, **kwargs):
@@ -72,8 +72,20 @@ def test_tmux_paste_input_uses_current_session_target() -> None:
 
     tmux = bridge.TmuxClient(runner=runner)
     tmux.paste_input("my-topic", "hello")
-    assert ["tmux", "paste-buffer", "-b", calls[1][3], "-t", "my-topic:0"] in calls
-    assert ["tmux", "send-keys", "-t", "my-topic:0", "Enter"] in calls
+    assert ["tmux", "paste-buffer", "-b", calls[1][3], "-t", "my-topic:0.0"] in calls
+    assert ["tmux", "send-keys", "-t", "my-topic:0.0", "Enter"] in calls
+
+
+def test_tmux_pane_cwd_uses_orchestrator_pane_zero() -> None:
+    calls: list[list[str]] = []
+
+    def runner(command, **kwargs):
+        calls.append(command)
+        return completed("/repo\n")
+
+    tmux = bridge.TmuxClient(runner=runner)
+    assert tmux.pane_cwd("my-topic") == "/repo"
+    assert calls == [["tmux", "display-message", "-p", "-t", "my-topic:0.0", "#{pane_current_path}"]]
 
 
 def test_extract_text_from_text_event() -> None:
