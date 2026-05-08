@@ -43,17 +43,17 @@ everywhere feishu status
 
 ## Send Files Or Images
 
-When the human asks for a local artifact, first run:
+When the human asks for a local artifact, upload it through the current attached Feishu thread:
+
+```bash
+everywhere feishu upload --image /path/to/image.png --message "optional caption"
+everywhere feishu upload --file /path/to/file.pdf --message "optional caption"
+```
+
+If you need to inspect the target first, run:
 
 ```bash
 everywhere feishu current --json
-```
-
-If `bound` is true, use the returned `root_message_id`:
-
-```bash
-lark-cli im +messages-reply --message-id <root_message_id> --reply-in-thread --image /path/to/image.png --as bot
-lark-cli im +messages-reply --message-id <root_message_id> --reply-in-thread --file /path/to/file.pdf --as bot
 ```
 
 Only upload an artifact when the human explicitly asks for it or the artifact is clearly part of the requested deliverable. Do not auto-upload arbitrary paths that appear in a normal final answer.

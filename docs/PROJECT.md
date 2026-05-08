@@ -16,7 +16,7 @@ It lets a human temporarily control and observe a local terminal agent session f
   Remote-control forwarding is bridge behavior, not something agents should reason about every turn.
 - `NOTIFY HUMAN` should not be used as a magic phrase. Explicit commands such as `everywhere feishu notify` are the escalation surface.
 - Everywhere remains a Python runtime/tool. Agent-facing behavior should live in an Everywhere Skill.
-- Agents can discover the current Feishu thread with `everywhere feishu current --json` and use `lark-cli` directly for short-term artifact upload.
+- Agents can discover the current Feishu thread with `everywhere feishu current --json` and upload artifacts with `everywhere feishu upload --image/--file`.
 - Feishu thread topic maps to one tmux session.
 - The tmux session name is the topic name.
 - Window `0` must look like an agent window. By default, names starting with `orchestrator`, `claude`, `codex`, or `node` are accepted.
@@ -74,7 +74,7 @@ Current working interpretation:
 - When remote control is attached, assistant final answers are forwarded by the bridge automatically.
 - Agents should not need to emit `NOTIFY HUMAN` only to make Feishu delivery happen.
 - Agents should use explicit commands for human paging, such as `everywhere feishu notify`.
-- Rich handoff is not a separate command. If an agent needs to send a local artifact, the bridge should upload the file or image into the Feishu thread.
+- Rich handoff is not a separate command. If an agent needs to send a local artifact, use `everywhere feishu upload --image/--file`.
 
 ## Review Questions
 

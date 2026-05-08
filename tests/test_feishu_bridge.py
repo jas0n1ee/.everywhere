@@ -146,6 +146,66 @@ def test_ack_bootstrap_message_without_message_id_is_noop() -> None:
     assert not bridge.ack_bootstrap_message(FakeLark(), {})
 
 
+def test_lark_reply_image_uses_message_reply_media_flag(tmp_path: Path) -> None:
+    calls: list[list[str]] = []
+    image = tmp_path / "image.png"
+    image.write_bytes(b"png")
+
+    def runner(command, **kwargs):
+        calls.append(command)
+        assert Path(kwargs.get("cwd")).resolve() == image.parent.resolve()
+        return completed("{}")
+
+    lark = bridge.LarkClient(runner=runner)
+    lark.reply_image("om_root", image, idempotency_key="idem")
+    assert calls == [
+        [
+            "lark-cli",
+            "im",
+            "+messages-reply",
+            "--message-id",
+            "om_root",
+            "--image",
+            image.name,
+            "--reply-in-thread",
+            "--as",
+            "bot",
+            "--idempotency-key",
+            "idem",
+        ]
+    ]
+
+
+def test_upload_thread_artifact_sends_caption_then_file(tmp_path: Path) -> None:
+    file_path = tmp_path / "report.pdf"
+    file_path.write_bytes(b"pdf")
+    binding = bridge.Binding.create(topic="topic-a", chat_id="oc_1", root_message_id="om_root")
+    calls: list[tuple[str, object]] = []
+
+    class FakeLark:
+        def reply_post(self, root_message_id, content, idempotency_key=None):
+            calls.append(("post", root_message_id, content, idempotency_key))
+
+        def reply_file(self, root_message_id, path, idempotency_key=None):
+            calls.append(("file", root_message_id, path, idempotency_key))
+
+    bridge.upload_thread_artifact(FakeLark(), binding, artifact_type="file", path=file_path, message="see attached")
+    assert calls[0][0] == "post"
+    assert calls[1][0] == "file"
+    assert calls[1][1] == "om_root"
+    assert calls[1][2] == file_path.resolve()
+
+
+def test_upload_thread_artifact_requires_existing_file(tmp_path: Path) -> None:
+    binding = bridge.Binding.create(topic="topic-a", chat_id="oc_1", root_message_id="om_root")
+    try:
+        bridge.upload_thread_artifact(object(), binding, artifact_type="file", path=tmp_path / "missing.pdf")
+    except RuntimeError as exc:
+        assert "not a file" in str(exc)
+    else:
+        raise AssertionError("expected missing artifact file to fail")
+
+
 def test_attach_creates_binding_when_missing(tmp_path: Path, monkeypatch) -> None:
     state = bridge.BridgeState(tmp_path)
     state.save_default_chat_id("oc_default")

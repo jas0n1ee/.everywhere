@@ -81,6 +81,7 @@ everywhere feishu detach
 everywhere feishu notify
 everywhere feishu status
 everywhere feishu current
+everywhere feishu upload
 ```
 
 The bridge stores state under:
@@ -278,18 +279,12 @@ feishu-bridge notify --message-file /path/to/handoff.md
 
 ## Agent Artifact Upload
 
-When an agent needs to send a local file or image to the human, first identify
+When an agent needs to send a local file or image to the human, upload it to
 the current attached Feishu thread:
 
 ```bash
-everywhere feishu current --json
-```
-
-Use the returned `root_message_id` with `lark-cli`:
-
-```bash
-lark-cli im +messages-reply --message-id <root_message_id> --reply-in-thread --image /path/to/image.png --as bot
-lark-cli im +messages-reply --message-id <root_message_id> --reply-in-thread --file /path/to/file.pdf --as bot
+everywhere feishu upload --image /path/to/image.png --message "optional caption"
+everywhere feishu upload --file /path/to/file.pdf --message "optional caption"
 ```
 
 Do this only when the human explicitly asks for an artifact or when the artifact
