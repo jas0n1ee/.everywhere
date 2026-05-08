@@ -1,3 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
-exec python3 "$(dirname "$0")/../scripts/feishu_bridge.py" "$@"
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  case "$SOURCE" in
+    /*) ;;
+    *) SOURCE="$DIR/$SOURCE" ;;
+  esac
+done
+ROOT="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
+exec python3 "$ROOT/scripts/feishu_bridge.py" "$@"
