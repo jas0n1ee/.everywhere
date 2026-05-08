@@ -107,3 +107,14 @@ everywhere install
 
 Re-running `install` after an update is safe. Existing Feishu bridge bindings and
 logs remain under `~/.everywhere/feishu-bridge/`.
+
+## Development
+
+Before committing bridge runtime or Skill changes, run:
+
+```bash
+everywhere check
+```
+
+This runs unit tests, builds a wheel, and verifies the Skill can be discovered
+with `npx skills add . --list --full-depth`.

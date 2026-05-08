@@ -25,10 +25,10 @@
 - `npx skills add` installs the isolated `skills/everywhere` Skill without copying runtime code.
 - Attachments are a supported Feishu bridge v1 feature, not yet a transport-neutral Everywhere abstraction.
   Inbound files/images are downloaded to local state and pasted into the agent session; outbound files/images use the Skill-guided `lark-cli` reply flow.
+- Keep outbound artifact upload in the Skill/lark-cli layer unless repeated edge cases justify a runtime wrapper.
+- Developer review gate is `everywhere check`.
 
 ## Remote Control / Feishu Bridge
 
 - Decide how non-Feishu bridges should share common code with `feishu_bridge.py`.
   Feishu is the first bridge, not the whole Everywhere transport layer.
-- Keep outbound artifact upload in the Skill/lark-cli layer unless repeated edge cases justify a runtime wrapper.
-- Decide whether the review gate should be documentation only, a local checklist command, or a test/lint command that must pass before bridge and provider-prompt commits.

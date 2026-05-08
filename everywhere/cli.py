@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import feishu_bridge, install
+from . import check, feishu_bridge, install
 
 
 def print_help() -> None:
@@ -13,10 +13,12 @@ def print_help() -> None:
 Commands:
   install             Check local prerequisites and initialize state
   feishu <command>    Run Feishu bridge commands
+  check               Run developer checks
   help                Show this help
 
 Examples:
   everywhere install
+  everywhere check
   everywhere feishu bootstrap-chat --chat-id <chat_id>
   everywhere feishu run
   everywhere feishu attach
@@ -34,6 +36,8 @@ def main(argv: list[str] | None = None) -> int:
     command = args.pop(0) if args else "help"
     if command == "install":
         return run_install(args)
+    if command == "check":
+        return check.main(args)
     if command in {"feishu", "feishu-bridge"}:
         return feishu_bridge.main(args)
     if command in {"help", "--help", "-h"}:

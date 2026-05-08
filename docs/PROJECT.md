@@ -89,14 +89,14 @@ Current working interpretation:
 - Should detached bindings still show in `status` by default?
 - Should old test bindings be garbage-collected or archived?
 
-## Current Test Command
+## Development Check
 
 ```bash
-python3 tests/run_feishu_bridge_tests.py
+everywhere check
 ```
 
-Expected result:
+This command runs:
 
-```text
-21 tests passed
-```
+- `python3 tests/run_feishu_bridge_tests.py`
+- `python3 -m pip wheel . -w <tempdir> --no-deps`
+- `npx skills add . --list --full-depth`
