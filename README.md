@@ -98,6 +98,25 @@ uv tool upgrade jas0n1ee-everywhere
 everywhere install
 ```
 
+To update from the GitHub repository instead of PyPI:
+
+```bash
+scripts/update-from-git.sh
+```
+
+Pass a branch, tag, or commit as the first argument when needed:
+
+```bash
+scripts/update-from-git.sh main
+scripts/update-from-git.sh d14c715
+```
+
+Override the repository URL with `EVERYWHERE_GIT_REPO` for forks:
+
+```bash
+EVERYWHERE_GIT_REPO=https://github.com/<owner>/.everywhere.git scripts/update-from-git.sh main
+```
+
 If you installed with `pipx`:
 
 ```bash
