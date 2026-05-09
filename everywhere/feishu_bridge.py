@@ -34,6 +34,7 @@ ACK_REACTION = os.environ.get("FEISHU_BRIDGE_ACK_REACTION", "OnIt")
 SUBMIT_DELAY_SECONDS = float(os.environ.get("FEISHU_BRIDGE_SUBMIT_DELAY_SECONDS", "0.1"))
 CODEX_SESSIONS_DIR = Path(os.environ.get("FEISHU_BRIDGE_CODEX_SESSIONS", "~/.codex/sessions")).expanduser()
 CLAUDE_PROJECTS_DIR = Path(os.environ.get("FEISHU_BRIDGE_CLAUDE_PROJECTS", "~/.claude/projects")).expanduser()
+RUNNER_STALE_SECONDS = float(os.environ.get("FEISHU_BRIDGE_RUNNER_STALE_SECONDS", "10"))
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]
 
@@ -88,6 +89,7 @@ class BridgeState:
         self.bindings_path = self.state_dir / "bindings.json"
         self.inbound_seen_path = self.state_dir / "inbound-events.json"
         self.outbound_seen_path = self.state_dir / "outbound-messages.json"
+        self.runner_path = self.state_dir / "runner.json"
         self.log_path = self.state_dir / "bridge.log"
 
     def ensure(self) -> None:
@@ -176,6 +178,24 @@ class BridgeState:
         values = self._load_set(self.outbound_seen_path)
         values.add(message_id)
         self._save_set(self.outbound_seen_path, values)
+
+    def save_runner_heartbeat(self, *, event_consumer_pid: int | None = None) -> None:
+        payload = {
+            "pid": os.getpid(),
+            "event_consumer_pid": event_consumer_pid,
+            "event_key": EVENT_KEY,
+            "updated_at": datetime.now().isoformat(),
+        }
+        self._write_json(self.runner_path, payload)
+
+    def load_runner_status(self) -> dict[str, Any]:
+        return runner_status_payload(self._read_json(self.runner_path, {}), now=time.time())
+
+    def clear_runner_heartbeat(self) -> None:
+        try:
+            self.runner_path.unlink()
+        except FileNotFoundError:
+            pass
 
     def log(self, message: str) -> None:
         self.ensure()
@@ -348,14 +368,18 @@ class TmuxClient:
         self.runner = runner
 
     def current_session(self) -> str:
-        if not os.environ.get("TMUX"):
-            raise RuntimeError("feishu-bridge attach/detach must run inside the target tmux session")
-        return self._tmux(["display-message", "-p", "#{session_name}"]).strip()
+        target_pane = self.current_pane()
+        return self._tmux(["display-message", "-p", "-t", target_pane, "#{session_name}"]).strip()
 
     def current_pane(self) -> str:
         if not os.environ.get("TMUX"):
             raise RuntimeError("feishu-bridge attach/detach must run inside the target tmux session")
+        env_pane = os.environ.get("TMUX_PANE")
+        if env_pane:
+            self._tmux(["display-message", "-p", "-t", env_pane, "#{pane_id}"])
+            return env_pane
         return self._tmux(["display-message", "-p", "#{pane_id}"]).strip()
+
 
     def legacy_pane_target(self, session: str) -> str:
         return f"{session}:0.0"
@@ -402,6 +426,50 @@ def idempotency_key(*parts: str) -> str:
     digest = hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()[:20]
     prefix = safe_name(parts[0])[:20] if parts else "bridge"
     return f"fb-{prefix}-{digest}"
+
+
+def process_exists(pid: Any) -> bool:
+    if not isinstance(pid, int) or pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def parse_iso_timestamp(value: Any) -> float | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.fromisoformat(value).timestamp()
+    except ValueError:
+        return None
+
+
+def runner_status_payload(raw: Any, *, now: float | None = None) -> dict[str, Any]:
+    payload = raw if isinstance(raw, dict) else {}
+    updated_at = payload.get("updated_at")
+    updated_ts = parse_iso_timestamp(updated_at)
+    age_seconds = None if updated_ts is None else max(0.0, (time.time() if now is None else now) - updated_ts)
+    pid = payload.get("pid")
+    event_consumer_pid = payload.get("event_consumer_pid")
+    pid_alive = process_exists(pid)
+    fresh = age_seconds is not None and age_seconds <= RUNNER_STALE_SECONDS
+    running = pid_alive and fresh
+    return {
+        "running": running,
+        "pid": pid if isinstance(pid, int) else None,
+        "pid_alive": pid_alive,
+        "event_consumer_pid": event_consumer_pid if isinstance(event_consumer_pid, int) else None,
+        "event_consumer_pid_alive": process_exists(event_consumer_pid),
+        "event_key": payload.get("event_key") if isinstance(payload.get("event_key"), str) else None,
+        "updated_at": updated_at if isinstance(updated_at, str) else None,
+        "age_seconds": age_seconds,
+        "stale_after_seconds": RUNNER_STALE_SECONDS,
+    }
 
 
 def split_text(text: str, limit: int = MAX_TEXT_CHARS) -> list[str]:
@@ -1029,28 +1097,33 @@ def cmd_run(args: argparse.Namespace) -> int:
     signal.signal(signal.SIGTERM, stop)
     last_outbound = 0.0
 
-    while not stopping:
-        if proc is None or proc.poll() is not None:
-            proc = consume_events()
-            state.log(f"event consumer started pid={proc.pid}")
-        assert proc.stdout is not None
-        readable, _, _ = select.select([proc.stdout], [], [], 1.0)
-        line = proc.stdout.readline() if readable else ""
-        if line:
-            try:
-                handle_inbound_event(state, lark, tmux, json.loads(line))
-                backoff = 1.0
-            except Exception as exc:
-                state.log(f"inbound processing error={exc}")
-        elif proc.poll() is not None:
-            state.log(f"event consumer exited code={proc.returncode}; restart in {backoff:.1f}s")
-            time.sleep(backoff)
-            backoff = min(backoff * 2, 60.0)
-            proc = None
-        now = time.time()
-        if now - last_outbound >= args.outbound_poll_interval:
-            poll_outbound_once(state, lark, tmux)
-            last_outbound = now
+    try:
+        state.save_runner_heartbeat()
+        while not stopping:
+            if proc is None or proc.poll() is not None:
+                proc = consume_events()
+                state.log(f"event consumer started pid={proc.pid}")
+            state.save_runner_heartbeat(event_consumer_pid=proc.pid if proc else None)
+            assert proc.stdout is not None
+            readable, _, _ = select.select([proc.stdout], [], [], 1.0)
+            line = proc.stdout.readline() if readable else ""
+            if line:
+                try:
+                    handle_inbound_event(state, lark, tmux, json.loads(line))
+                    backoff = 1.0
+                except Exception as exc:
+                    state.log(f"inbound processing error={exc}")
+            elif proc.poll() is not None:
+                state.log(f"event consumer exited code={proc.returncode}; restart in {backoff:.1f}s")
+                time.sleep(backoff)
+                backoff = min(backoff * 2, 60.0)
+                proc = None
+            now = time.time()
+            if now - last_outbound >= args.outbound_poll_interval:
+                poll_outbound_once(state, lark, tmux)
+                last_outbound = now
+    finally:
+        state.clear_runner_heartbeat()
     return 0
 
 
@@ -1098,8 +1171,12 @@ def cmd_bootstrap_chat(args: argparse.Namespace) -> int:
 
 
 def cmd_attach(args: argparse.Namespace) -> int:
-    binding = create_or_update_binding(BridgeState(args.state_dir), LarkClient(), TmuxClient())
+    state = BridgeState(args.state_dir)
+    binding = create_or_update_binding(state, LarkClient(), TmuxClient())
     print(f"Attached {binding.topic} to Feishu root {binding.root_message_id}")
+    runner = state.load_runner_status()
+    if not runner["running"]:
+        print("Warning: Feishu bridge runner is not detected. Start it with `everywhere feishu run`.", file=sys.stderr)
     return 0
 
 
@@ -1157,6 +1234,7 @@ def cmd_current(args: argparse.Namespace) -> int:
         raise RuntimeError(payload["error"])
     payload = binding_status_payload(binding)
     payload["bound"] = True
+    payload["runner"] = state.load_runner_status()
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
@@ -1171,8 +1249,15 @@ def cmd_status(args: argparse.Namespace) -> int:
     lark = LarkClient()
     ok, reason = lark.check()
     default_chat = state.get_default_chat_id() or "-"
+    runner = state.load_runner_status()
+    runner_label = "running" if runner["running"] else "not running"
+    if runner["pid"]:
+        runner_label += f", pid={runner['pid']}"
+    if runner["age_seconds"] is not None:
+        runner_label += f", heartbeat_age={runner['age_seconds']:.1f}s"
     print(f"State: {state.state_dir}")
     print(f"lark-cli: {reason}")
+    print(f"Runner: {runner_label}")
     print(f"Default chat: {default_chat}")
     print(f"Bindings: {len(state.load_bindings())}")
     for binding in state.load_bindings():

@@ -62,6 +62,34 @@ def test_idempotency_key_stays_within_lark_limit() -> None:
     assert len(key) <= 50
 
 
+def test_runner_status_requires_live_pid_and_fresh_heartbeat() -> None:
+    updated_at = "2026-05-08T12:00:00"
+    updated_ts = bridge.parse_iso_timestamp(updated_at)
+    assert updated_ts is not None
+
+    with patch.object(bridge, "RUNNER_STALE_SECONDS", 10), patch.object(bridge, "process_exists", lambda pid: pid == 123):
+        fresh = bridge.runner_status_payload({"pid": 123, "updated_at": updated_at}, now=updated_ts + 5)
+        stale = bridge.runner_status_payload({"pid": 123, "updated_at": updated_at}, now=updated_ts + 20)
+        dead = bridge.runner_status_payload({"pid": 456, "updated_at": updated_at}, now=updated_ts + 5)
+
+    assert fresh["running"] is True
+    assert stale["running"] is False
+    assert dead["running"] is False
+
+
+def test_state_runner_heartbeat_round_trip(tmp_path: Path) -> None:
+    state = bridge.BridgeState(tmp_path)
+    state.save_runner_heartbeat(event_consumer_pid=456)
+
+    raw = json.loads((tmp_path / "runner.json").read_text(encoding="utf-8"))
+    assert raw["pid"] == bridge.os.getpid()
+    assert raw["event_consumer_pid"] == 456
+    assert raw["event_key"] == bridge.EVENT_KEY
+
+    state.clear_runner_heartbeat()
+    assert not (tmp_path / "runner.json").exists()
+
+
 def test_tmux_paste_input_uses_bound_target_pane() -> None:
     calls: list[list[str]] = []
     inputs: list[str | None] = []
@@ -94,6 +122,35 @@ def test_tmux_paste_input_legacy_binding_falls_back_to_session_pane_zero() -> No
     with patch.object(bridge, "SUBMIT_DELAY_SECONDS", 0):
         tmux.paste_input(binding, "hello")
     assert ["tmux", "paste-buffer", "-b", calls[1][3], "-t", "topic-a:0.0"] in calls
+
+
+def test_tmux_current_pane_prefers_tmux_pane_env() -> None:
+    calls: list[list[str]] = []
+
+    def runner(command, **kwargs):
+        calls.append(command)
+        return completed("%7\n")
+
+    tmux = bridge.TmuxClient(runner=runner)
+    with patch.dict(bridge.os.environ, {"TMUX": "/tmp/tmux", "TMUX_PANE": "%7"}):
+        assert tmux.current_pane() == "%7"
+    assert calls == [["tmux", "display-message", "-p", "-t", "%7", "#{pane_id}"]]
+
+
+def test_tmux_current_session_uses_tmux_pane_env_target() -> None:
+    calls: list[list[str]] = []
+
+    def runner(command, **kwargs):
+        calls.append(command)
+        if command == ["tmux", "display-message", "-p", "-t", "%7", "#{pane_id}"]:
+            return completed("%7\n")
+        if command == ["tmux", "display-message", "-p", "-t", "%7", "#{session_name}"]:
+            return completed("topic-a\n")
+        raise AssertionError(command)
+
+    tmux = bridge.TmuxClient(runner=runner)
+    with patch.dict(bridge.os.environ, {"TMUX": "/tmp/tmux", "TMUX_PANE": "%7"}):
+        assert tmux.current_session() == "topic-a"
 
 
 def test_tmux_pane_cwd_uses_bound_target_pane() -> None:
